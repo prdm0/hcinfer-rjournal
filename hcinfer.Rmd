@@ -1,0 +1,672 @@
+---
+title: "hcinfer: An R Package for Heteroskedasticity-Consistent Inference in Linear Regression"
+author:
+  - name: Pedro Rafael D. Marinho
+    affiliation: Universidade Federal da Paraíba
+    address:
+      - Departamento de Estatística, Universidade Federal da Paraíba
+      - João Pessoa/PB, Brazil
+    orcid: 0000-0003-1591-8300
+    email: pedro.rafael.marinho@gmail.com
+    url: https://github.com/prdm0
+  - name: Francisco Cribari-Neto
+    affiliation: Universidade Federal de Pernambuco
+    address:
+      - Departamento de Estatística, Universidade Federal de Pernambuco
+      - Recife/PE, Brazil
+    orcid: 0000-0002-5909-6698
+    email: cribari@gmail.com
+  - name: Marina Oliveira Cunha
+    affiliation: Universidade Federal de Pernambuco
+    address:
+      - Departamento de Estatística, Universidade Federal de Pernambuco
+      - Recife/PE, Brazil
+    orcid: 0009-0007-4938-3881
+    email: marina.oliveirac@ufpe.br
+date: "2026-08-07"
+lang: en
+abstract: >
+  Ordinary least squares regression is a standard tool in applied statistics,
+  but its usual standard errors assume constant error variance. When this
+  assumption fails, tests and confidence intervals based on the conventional
+  covariance matrix can be misleading, even though the coefficient estimates
+  remain unbiased. Heteroskedasticity-consistent covariance estimators correct
+  this problem without a parametric model for the error variances, but
+  different estimators can produce substantially different inferences,
+  especially when high-leverage observations are present. The hcinfer package
+  for R provides a focused workflow for heteroskedasticity-consistent inference
+  in linear models fitted with lm. It computes the HC0 through HC5m estimators
+  together with HCbeta, a leverage-sensitive estimator proposed by the package
+  authors that adjusts the residual weights through a beta distribution fitted
+  to the leverage values. The package integrates covariance estimation,
+  coefficient-level normal Wald tests, confidence intervals, leverage
+  diagnostics, adjustment-factor inspection, and graphical reporting behind a
+  small and consistent interface, and it reuses the standard R generics so that
+  its objects behave like familiar model outputs. This article describes the
+  package interface and implementation, and illustrates its use with an
+  analysis of public school expenditure data in which the choice of covariance
+  estimator changes the substantive conclusion. The default HCbeta estimator
+  provides a leverage-sensitive correction while avoiding the very large
+  adjustment factors that some high-leverage estimators produce, and it makes
+  comparing estimators and inspecting leverage values straightforward.
+type: package
+preamble: |
+  \usepackage{booktabs}
+bibliography: hcinfer.bib
+output:
+  rjtools::rjournal_pdf_article:
+    toc: no
+  rjtools::rjournal_web_article:
+    self_contained: yes
+    toc: no
+    mathjax: "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_SVG"
+    css: custom.css
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE,
+                      fig.align = "center")
+library(hcinfer)
+library(ggplot2)
+library(dplyr)
+```
+
+# Introduction
+
+Linear regression models fitted by ordinary least squares are widely used in empirical research because of their interpretable parameters, well-established diagnostic tools, and stable implementation in statistical software. Statistical inference in such models, however, depends critically on the covariance matrix used for the coefficient estimates. The conventional covariance estimator is derived under the assumption of homoskedastic errors. When error variances differ across observations, standard errors based on this assumption may distort hypothesis tests and confidence intervals, even though the coefficient estimates remain unbiased under the usual exogeneity conditions.
+
+Heteroskedasticity is often a structural feature of applied data rather than a mere diagnostic irregularity. In cross-sectional economic, educational, and social applications, responses associated with larger, wealthier, or more heterogeneous units frequently display greater conditional variability. Firm-level outcomes may scale with size, regional indicators may aggregate units with very different characteristics, and survey or administrative data may combine measurements with unequal precision. In such settings, reliable inference requires covariance estimators that remain valid without restrictive variance assumptions.
+
+Heteroskedasticity-consistent (HC) covariance matrix estimators provide a nonparametric correction to this problem. The seminal estimator of @White1980 replaces the scalar error variance in the ordinary least squares covariance matrix with a diagonal matrix formed by squared residuals. Subsequent proposals refine this construction through finite-sample and leverage-based adjustment factors. These include HC1 [@Hinkley1977], HC2 [@MacKinnonWhite1985], HC3 [@MacKinnonWhite1985; @DavidsonMacKinnon1993], HC4 [@CribariNeto2004], HC4m [@CribariNetoDaSilva2011], HC5 [@CribariNetoSouzaVasconcellos2007], HC5m [@Li2016], and the more recent $\text{HC}_\beta$ [@Cunha+Cribari+Marinho_2026_arXiv]. Although all of these estimators converge to the same asymptotic sandwich form, their finite-sample behavior can differ substantially, which is precisely the regime where the choice among them affects substantive conclusions.
+
+The \CRANpkg{hcinfer} package for R implements this family of HC estimators for linear models fitted with `lm()` [@RCoreTeam2026; @MarinhoHcinfer2026]. Although robust covariance estimation is already well established in R through the \CRANpkg{sandwich} package [@Zeileis2004; @Zeileis2006], which provides a broad framework for HC and HAC estimation, \CRANpkg{hcinfer} has a more specialized and complementary purpose. It focuses exclusively on HC inference for linear regression models and integrates covariance estimation, coefficient-level normal Wald tests, confidence intervals, leverage diagnostics, adjustment-factor inspection, and graphical reporting into a unified framework. Its default estimator is $\text{HC}_\beta$, reflecting the package authors' view that a leverage-sensitive correction is a reasonable starting point for routine inference in modest samples.
+
+This article presents `hcinfer` as a statistical software contribution for heteroskedasticity-robust inference in linear regression. The emphasis is on the package interface, implementation, and practical use, while the mathematical development is included only to define the quantities computed and to clarify the relationships among the available estimators. Section 2 reviews HC covariance estimators and normal Wald inference. Section 3 introduces the package interface. Section 4 discusses implementation details. Section 5 presents an empirical illustration and an estimator comparison. Section 6 documents software availability and reproducibility, and Section 7 summarizes the contribution.
+
+# Statistical background
+
+Robust covariance estimation starts from the usual ordinary least squares model and changes the estimator of its covariance matrix. This section defines the model, residuals, leverage values, and adjustment factors used by every method implemented in \CRANpkg{hcinfer}. Consider the linear regression model
+$$
+\mathbf{y} = X\boldsymbol{\beta} + \mathbf{e},
+$$
+where $\mathbf{y}$ is an $n \times 1$ response vector, $X$ is an $n \times p$ full-rank design matrix with $p < n$, $\boldsymbol{\beta}$ is a $p \times 1$ parameter vector, and $\mathbf{e}$ is an $n \times 1$ error vector. For $t = 1, \ldots, n$, $\mathbb{E}(e_t)=0$ and $\operatorname{Var}(e_t)=\sigma_t^2 < \infty$. The ordinary least squares estimator of $\boldsymbol{\beta}$ is
+$$
+\hat{\boldsymbol{\beta}} = (X'X)^{-1}X'\mathbf{y},
+$$
+and $\hat{e}_t = y_t - \mathbf{x}_t'\hat{\boldsymbol{\beta}}$ denotes the ordinary least squares residual for observation $t$.
+
+The covariance matrix of $\hat{\boldsymbol{\beta}}$ is
+$$
+\Psi = (X'X)^{-1}X'\Omega X(X'X)^{-1},
+$$
+where $\Omega = \operatorname{diag}(\sigma_1^2,\ldots,\sigma_n^2)$. HC estimators of $\Psi$ replace $\Omega$ with
+$$
+\widehat{\Omega} = \operatorname{diag}(\hat{e}_1^2 g_1,\ldots,\hat{e}_n^2 g_n),
+$$
+yielding the sandwich estimator
+\begin{equation}
+\widehat{\Psi}_{HC} = (X'X)^{-1}X'\widehat\Omega X(X'X)^{-1}.
+(\#eq:sandwich)
+\end{equation}
+The estimators differ only through the adjustment factors $g_t$, which is why the sandwich form in Equation \@ref(eq:sandwich) can host a whole family of HC estimators behind a single template.
+The diagonal entries of $\widehat{\Omega}$ therefore combine squared residuals with method-specific corrections before the outer matrices map them to coefficient covariances.
+
+These adjustment factors typically depend on the leverage of each observation. The hat matrix is
+$$
+H = X(X'X)^{-1}X',
+$$
+and its $t$th diagonal element is denoted by $h_t$. The quantity $h_t$ measures the leverage of observation $t$, and the average leverage is $\bar{h} = p/n$. Because $h_t$ identifies observations that exert unusual influence on the fitted values, it is the natural quantity through which a leverage-sensitive correction can be calibrated within the sandwich framework.
+
+For HC0, $g_t = 1$. HC1 uses $g_t = n/(n-p)$. HC2 uses $g_t = (1-h_t)^{-1}$, and HC3 uses $g_t = (1-h_t)^{-2}$. The HC4 and HC4m estimators take the form $g_t=(1-h_t)^{-\delta_t}$, with
+$$
+\delta_t = \min\left(4, \frac{h_t}{\bar{h}}\right)
+$$
+for HC4 and
+$$
+\delta_t = \min\left(1, \frac{h_t}{\bar{h}}\right)
++ \min\left(1.5, \frac{h_t}{\bar{h}}\right)
+$$
+for HC4m. These piecewise definitions let the exponent grow with leverage up to a cap, so that the correction strengthens for high-leverage points while remaining bounded.
+
+HC5 and HC5m extend these leverage-based adjustments to accommodate more extreme leverage patterns. Let $h_{\max} = \max(h_1,\ldots,h_n)$. HC5 uses $g_t=(1-h_t)^{-\delta_t}$, where
+$$
+\delta_t = \min\left(
+\frac{h_t}{\bar{h}},
+\max\left(4, k\frac{h_{\max}}{\bar{h}}\right)
+\right),
+\qquad k = 0.7.
+$$
+By contrast with HC4, the cap of HC5 itself grows with the most extreme leverage value, so the correction can track designs in which one observation is far more influential than the rest. HC5m combines the adjustment structures of HC4m and HC5:
+$$
+\delta_t
+=
+k_1\min\left(\gamma_1, \frac{h_t}{\bar{h}}\right)
++
+k_2\min\left(\gamma_2, \frac{h_t}{\bar{h}}\right)
++
+k_3\min\left(
+\frac{h_t}{\bar{h}},
+\max\left(4, k\frac{h_{\max}}{\bar{h}}\right)
+\right),
+$$
+with defaults $k=0.7$, $k_1=1$, $k_2=0$, $k_3=1$, $\gamma_1=1$, and $\gamma_2=1.5$, and $g_t=(1-h_t)^{-\delta_t}$. With these defaults, HC5m combines the first capped HC4m component with the HC5 component and omits the second capped component.
+
+$\text{HC}_\beta$ uses the leverage complement $u_t = 1 - h_t$ and its truncated version $w_t = \max\left(0.01, \min(u_t, 0.99)\right)$. The beta shape parameters, $a$ and $b$, are estimated by the method of moments from $w_t$, then shrunk toward the uniform case $a = b = 1$:
+\begin{equation}
+\zeta = \frac{n}{n+50}, \quad
+\tilde{a} = (1-\zeta) + \zeta\hat{a}, \quad
+\tilde{b} = (1-\zeta) + \zeta\hat{b},
+(\#eq:shrinkage)
+\end{equation}
+where $\hat{a}$ and $\hat{b}$ are the method-of-moments estimators of the beta shape parameters. The shrinkage in Equation \@ref(eq:shrinkage) regularizes the fitted beta distribution toward the uniform distribution, which keeps the adjustment stable when the empirical leverage distribution is sparse or skewed in a small sample. The $\text{HC}_\beta$ adjustment factor is
+$$
+g_t =
+\frac{n}{n-p}
+\left(
+\frac{1}{F_B(w_t;\tilde{a},\tilde{b})}
+\right)^{c_1/n^{c_2}},
+\qquad c_1=7, \quad c_2=0.75,
+$$
+where $F_B(\cdot;\tilde{a},\tilde{b})$ denotes the cumulative distribution function of a beta distribution with shape parameters $\tilde{a}$ and $\tilde{b}$. The beta CDF provides a smooth generalization of the uniform CDF, but its use here does not assume that $u_t$ follows a beta distribution. When $c_1=0$, the exponent $c_1/n^{c_2}$ is zero and the bracketed factor equals one, so $\text{HC}_\beta$ reduces exactly to HC1 for any finite positive fitted shape parameters. As $n$ grows, $c_1/n^{c_2}\to0$ and $n/(n-p)\to1$, so $g_t\to1$ and the HC0 structure is recovered asymptotically. The correction is designed to adapt to the leverage structure rather than imposing a fixed or piecewise power of $(1-h_t)$.
+
+For a coefficient $\beta_j$, `hcinfer` tests
+$$
+\mathcal{H}_0 \colon \beta_j = \beta_j^{(0)}, \qquad j = 1,\ldots,p,
+$$
+using
+$$
+z_j =
+\frac{\hat\beta_j - \beta_j^{(0)}}
+{\sqrt{[\widehat\Psi_{HC}]_{jj}}},
+$$
+where $[\widehat\Psi_{HC}]_{jj}$ is the $j$th diagonal element of $\widehat{\Psi}_{HC}$. Under $\mathcal{H}_0$, $z_j$ is asymptotically standard normal, so inference is based on approximate normal critical values. As a consequence, the finite-sample rejection rates may differ from the nominal significance level, particularly in small samples or in designs with influential high-leverage observations. The corresponding $(1-\alpha)$ confidence interval is
+$$
+\hat{\beta}_j
+\pm
+z_{1-\alpha/2}
+\sqrt{[\widehat{\Psi}_{HC}]_{jj}},
+$$
+and it contains $\beta_j$ with probability that approaches $1-\alpha$ when $n \to \infty$.
+
+# Overview of the hcinfer package
+
+The package is organized around two main entry points that follow a common interface. The covariance function, `vcov_hc(object, type, ...)`, computes a heteroskedasticity-consistent covariance estimator and returns an S3 object containing the covariance matrix, residuals, leverage values, HC adjustment factors, method parameters, coefficient names, model metadata, and dimension information. The inference function, `hcinfer(object, type, alpha, null, ...)`, builds on `vcov_hc()` and augments its output with coefficient-level test statistics, $p$-values, confidence intervals, null values, and the corresponding normal critical value.
+
+The argument `type` selects the HC estimator and is matched case insensitively. The argument `alpha` determines the nominal level of the $(1-\alpha)$ confidence intervals and associated tests. The argument `null` specifies the null hypothesis values and accepts either a scalar, applied to all coefficients, or a named vector assigning different null values to selected coefficients. Figure \@ref(fig:workflow) summarizes the user-facing workflow.
+
+```{r workflow, echo=FALSE, fig.cap="Main hcinfer workflow from a fitted lm() object to robust covariance estimation, coefficient inference, and diagnostic graphics. The covariance object provides the robust covariance matrix, leverage values, adjustment factors, and method parameters; the inference object augments these quantities with Wald tests and confidence intervals.", fig.alt="Workflow diagram. A fitted lm() object feeds vcov_hc() and hcinfer(); hcinfer() internally calls vcov_hc(). vcov_hc() returns an hcinfer_vcov object supporting vcov() and plot(); hcinfer() returns an hcinfer object supporting tests(), confint(), summary(), and plot()."}
+knitr::include_graphics(
+  if (knitr::is_latex_output()) "figures/workflow.pdf" else "figures/workflow.png")
+```
+
+The available estimators are selected through `type`, and Table \@ref(tab:methods) lists the implemented methods together with their tuning constants. These constants are supplied through `...` and default to the values proposed in the original methodology. This design allows the user to retune an estimator without changing the rest of the interface; for example, by setting $k = 0.5$ for HC5 or $c_1 = 5$ and $c_2 = 0.5$ for $\text{HC}_\beta$.
+
+```{r methods, echo=FALSE}
+methods_df <- data.frame(
+  Type = c("hc0", "hc1", "hc2", "hc3", "hc4", "hc4m", "hc5", "hc5m", "hcbeta"),
+  Label = c("HC0", "HC1", "HC2", "HC3", "HC4", "HC4m", "HC5", "HC5m", "HCbeta"),
+  Description = c(
+    "White heteroskedasticity-consistent estimator.",
+    "HC0 with degrees-of-freedom scaling.",
+    "Leverage-adjusted estimator with exponent 1.",
+    "Leverage-adjusted estimator with exponent 2.",
+    "Adaptive leverage correction by Cribari-Neto.",
+    "Modified HC4 correction by Cribari-Neto and da Silva.",
+    "High-leverage correction by Cribari-Neto, Souza, and Vasconcellos.",
+    "Modified HC5 correction by Li, Zhang, Zhang, and Wang.",
+    "Beta-distribution leverage correction."
+  ),
+  `Default arguments` = c(
+    "none", "none", "none", "none", "none", "none",
+    "k = 0.7",
+    "k = 0.7, k1 = 1, k2 = 0, k3 = 1, gamma1 = 1, gamma2 = 1.5",
+    "c1 = 7, c2 = 0.75, lower = 0.01, upper = 0.99"
+  ),
+  check.names = FALSE
+)
+methods_tbl <- knitr::kable(
+  methods_df,
+  format = if (knitr::is_latex_output()) "latex" else "html",
+  booktabs = TRUE,
+  caption = "Heteroskedasticity-consistent covariance estimators implemented in the package. The values in the last column are the method-specific defaults exposed through the dots argument of the covariance and inference functions."
+)
+if (knitr::is_latex_output()) {
+  methods_tbl <- kableExtra::column_spec(methods_tbl, 3, width = "5.9cm")
+  methods_tbl <- kableExtra::column_spec(methods_tbl, 4, width = "3.7cm")
+}
+methods_tbl
+```
+
+The tuning constants also make explicit the relationships among estimators. HC5m reduces to HC4m when $(k_1, k_2, k_3) = (1,1,0)$ and to HC5 when $(k_1, k_2, k_3) = (0,0,1)$. When the fitted shape parameters equal one, the beta CDF coincides with the uniform CDF; independently of those parameters, $\text{HC}_\beta$ reduces exactly to HC1 when $c_1=0$, because the adjustment exponent then vanishes. Methods without tuning constants do not accept additional arguments. For HC5, HC5m, and $\text{HC}_\beta$, supplied argument names are validated against the documented set, so misspelled constants are rejected with an informative error rather than being ignored silently.
+
+Table \@ref(tab:api) lists the main user-facing functions. The package reuses the standard generics `coef()`, `vcov()`, `confint()`, `summary()`, `print()`, and `plot()`, allowing its objects to behave like familiar model outputs. The `plot()` method produces a coefficient forest plot for inference objects and an adjustment-factor diagnostic for covariance objects. Its `label_top` argument controls how many high-leverage observations are annotated. The extractor functions `tests()` and `hc_methods()` provide functionality beyond the base R generics, and both `tests()` and `confint()` accept a `parm` argument to restrict the output to selected coefficients.
+
+```{r api, echo=FALSE}
+api_df <- data.frame(
+  Function = c(
+    "hcinfer()", "vcov_hc()", "tests()", "confint()", "summary()",
+    "plot()", "hc_methods()", "coef() and vcov()"
+  ),
+  Role = c(
+    "Fits the full robust inference workflow for an lm() object.",
+    "Returns the selected HC covariance matrix and diagnostics.",
+    "Extracts coefficient-level normal Wald tests as a tibble.",
+    "Extracts robust Wald confidence intervals.",
+    "Prints model metadata, method parameters, leverage diagnostics, robust weights, tests, and intervals.",
+    "Displays confidence intervals for inference objects or adjustment factors against leverage for covariance objects.",
+    "Lists implemented estimators and default method-specific arguments.",
+    "Extract stored OLS coefficients and robust covariance matrices."
+  ),
+  check.names = FALSE
+)
+api_tbl <- knitr::kable(
+  api_df,
+  format = if (knitr::is_latex_output()) "latex" else "html",
+  booktabs = TRUE,
+  caption = "Main user-facing functions in hcinfer."
+)
+if (knitr::is_latex_output()) {
+  api_tbl <- kableExtra::column_spec(api_tbl, 2, width = "9.8cm")
+}
+api_tbl
+```
+
+# Implementation details
+
+The implementation follows the sandwich representation in Equation \@ref(eq:sandwich), but avoids two matrix constructions that would be unnecessarily expensive in routine use. The model matrix, residuals, coefficients, terms, model call, and formula are extracted once from the `lm()` object. Leverage values are obtained through `stats::hatvalues()`, which uses the QR decomposition stored in the fitted model, so the full hat matrix is never formed. This matters because the package only requires the diagonal entries $h_t$, not the full $n \times n$ matrix $H$.
+
+The covariance calculation also avoids forming $\widehat{\Omega}$ as a dense diagonal matrix, and it applies the outer factors of the sandwich in Equation \@ref(eq:sandwich) without ever storing an inverse. Let $A = X'X$, let $\omega_t = \hat{e}_t^2 g_t$ collect the squared residuals and adjustment factors into the vector $\boldsymbol{\omega} = (\omega_1, \ldots, \omega_n)'$, and let $M = X'\operatorname{diag}(\boldsymbol{\omega})X$ denote the middle factor, so that the estimator becomes $\widehat{\Psi}_{HC} = A^{-1} M A^{-1}$. Two evaluation paths return this matrix. A reference path first defines `A_inv <- solve(crossprod(x))` and then evaluates the literal chain `A_inv %*% t(x) %*% (x * omega) %*% A_inv`; because the matrix product `%*%` has equal precedence and associates from left to right in R [@RCoreTeam2026], the first product formed is $A^{-1}X'$, a $p \times n$ intermediate. The package path instead keeps $\boldsymbol{\omega}$ as a vector, forms $M$ directly with `crossprod(x, x * omega)`, and applies both outer factors through triangular solves. The two paths return the same covariance estimator in exact arithmetic, and the transcription below records the package sequence.
+
+```r
+chol_solve <- function(chol_factor, b) {
+  backsolve(
+    chol_factor,
+    forwardsolve(t(chol_factor), b)
+  )
+}
+omega <- residuals^2 * weights
+middle <- crossprod(x, x * omega)
+xtx <- crossprod(x)
+chol_factor <- chol(xtx) # tryCatch() guard omitted
+left <- chol_solve(chol_factor, middle)
+psi <- t(chol_solve(chol_factor, t(left)))
+psi <- (psi + t(psi)) / 2
+```
+
+These expressions make the working storage explicit without hiding a real allocation. R vector recycling evaluates `x * omega` as an $n \times p$ row-scaled temporary, after which `crossprod(x, x * omega)` returns the required $p \times p$ middle matrix directly, and `crossprod(x)` forms $A$ without an explicit transpose at the R-expression level. Relative to the left-associated chain, the package path avoids the $p \times n$ intermediate $A^{-1}X'$, the explicit `t(x)` object, and the explicitly available inverse; both routes already avoid the conceptual dense $n \times n$ matrix $\widehat{\Omega}$ by scaling rows, whereas a literal transcription with `diag(omega)` would not. Beyond the model matrix and the vectors, the package expressions request one $n \times p$ row-scaled design and $p \times p$ intermediates, and the Cholesky factor replaces the inverse with another $p \times p$ object. Omitting the inverse alone is therefore not an asymptotic reduction in memory; these are statements about the shapes of the objects created rather than measurements of peak memory.
+
+The two paths also differ in the number of scalar multiplications used to assemble the sandwich. We adopt a dense-arithmetic convention in which, once $\boldsymbol{\omega}$ is available, the count retains only the dominant assembly terms that depend on $n$, treats the symmetric one-argument cross-product $X'X$ as a single triangle, and includes the common $np$ row scaling, while excluding transpositions, additions, lower-order vector work, backend effects, and the route-specific $O(p^3)$ work. Under this convention the leading counts are
+\begin{equation}
+\begin{aligned}
+C_{\mathrm{left}}^{(n)} &= np(p+1)/2 + np + 2np^2, \\
+C_{\mathrm{hcinfer}}^{(n)} &= np(p+1)/2 + np + np^2,
+\end{aligned}
+(\#eq:assembly-counts)
+\end{equation}
+with leading totals $\tfrac{5}{2}np^2$ and $\tfrac{3}{2}np^2$. The counts in Equation \@ref(eq:assembly-counts) differ by one classical $np^2$ multiplication stage, so forming $M$ directly removes that stage relative to the left-associated chain. Both paths nonetheless remain $O(np^2 + p^3)$, and the package's $p^3$ contribution consists of one factorization together with four triangular-solve calls carrying $p$ right-hand-side columns. The ratio $5/3$ compares the leading $n$-dependent coefficients and is not a universal wall-clock speed ratio, and an explicit-inverse expression that forms $M$ before applying the inverse shares the package route's leading $n$-dependent count, so the comparison does not extend to every inverse-based evaluation order.
+
+The factorized route applies $A^{-1}$ twice through the same Cholesky factor. The call `chol(xtx)` produces $A = R'R$ with $R$ upper triangular, and each application of `chol_solve()` performs one forward and one backward triangular-solve call on a $p \times p$ matrix right-hand side. The first helper call solves $AL = M$ and yields $L = A^{-1}M$, the second solves $AZ = L'$ and yields $Z = A^{-1}L'$, and transposition then gives $Z' = A^{-1}MA^{-1}$ because $A$ and $M$ are symmetric. Each covariance call therefore performs four triangular-solve calls, two forward and two backward, reusing one factorization for the two applications of $A^{-1}$ and storing no inverse. Solving with the factor rather than constructing $A^{-1}$ for later multiplication follows standard numerical-linear-algebra practice [@Higham2002], although it establishes no measured accuracy gain, no stability theorem for the full covariance calculation, and no immunity to collinearity. Because $\kappa_2(X'X) = \kappa_2(X)^2$ for full-column-rank $X$, the conditioning of the normal-equations matrix remains part of both paths.
+
+The factorization is wrapped in a `tryCatch()` call whose role is deliberately narrow. It reports when the computed cross-product is not numerically positive definite, so it is a factorization-failure guard rather than a condition-number diagnostic, and a successful factorization does not establish that $X$ or $X'X$ is well conditioned. Averaging the result with its transpose in the final line enforces exact symmetry of the returned matrix; this step is neither a conditioning check nor a positive-semidefiniteness check, and it does not establish improved numerical accuracy of the symmetric part. These safeguards are separate from the broader input validation described later in this section, which screens the fitted model before the covariance routine runs.
+
+The package tests bound these claims narrowly rather than certifying them in general. They include one regression check that compares the HC3 covariance against the direct expression $A^{-1} X'\operatorname{diag}(\boldsymbol{\omega})X A^{-1}$ at tolerance $10^{-10}$, together with a separate check that the returned $\text{HC}_\beta$ matrix equals its own transpose. The direct expression is an alternate double-precision route rather than a high-precision oracle, so the agreement it confirms is consistency between two finite-precision computations of the same estimator. The comparison in this section is analytical rather than a wall-clock benchmark, an allocation profile, or an empirical accuracy experiment; repeated covariance calls can make the avoided product and the avoided allocation relevant, yet the manuscript claims neither a general speedup nor that this helper determined the runtime or numerical reliability of any other analysis. Figure \@ref(fig:sandwich-efficiency) summarizes this data flow, tracing the inputs through the two construction branches to the triangular solves and the symmetrized output.
+
+```{r sandwich-efficiency, echo=FALSE, fig.cap="Factorized covariance data flow in hcinfer. The diagonal is retained as the vector $\\boldsymbol{\\omega}$, and R materializes the row-scaled design $\\operatorname{diag}(\\boldsymbol{\\omega})X$ as an $n \\times p$ temporary before the cross-product returns the middle matrix $M = X'\\operatorname{diag}(\\boldsymbol{\\omega})X$ as $p \\times p$. The upper branch forms $A = X'X$ and a single Cholesky factor, and the two branches meet in four triangular-solve calls, two forward and two backward on matrix right-hand sides, followed by symmetrization of the output. The dashed annotation lists the objects the routine deliberately does not form rather than another step in the flow.", fig.alt="Left-to-right data-flow diagram of the hcinfer covariance calculation. On the left, the inputs are the model matrix X of size n by p, the residual vector, and the weight vector. The flow splits into two branches. The upper branch forms the cross-product A equal to X-transpose times X of size p by p and its Cholesky factor R. The lower branch keeps the weights as the length-n vector omega, materializes the row-scaled design x times omega as an n by p temporary, and returns the middle matrix M equal to X-transpose times diag(omega) times X directly as p by p. The two branches meet only at a solve node that performs four triangular-solve calls on matrix right-hand sides, two forward and two backward, applying the inverse of A twice without storing it, and then symmetrizes the p by p covariance output. Below the flow, a separate dashed box with no arrows into or out of it lists the objects deliberately not formed: the dense n by n diagonal matrix, the explicit transpose of X, the explicit inverse of A, and the p by n product formed by the inverse of A times X-transpose."}
+knitr::include_graphics(
+  if (knitr::is_latex_output()) "figures/sandwich-efficiency.pdf" else "figures/sandwich-efficiency.png")
+```
+
+HC weights are computed by a single vectorized dispatcher. The dispatcher constructs $h_t/\bar{h}$, $1-h_t$, and $h_{\max}$ once and changes only the formula for $g_t$. This keeps the estimators comparable in code as well as in the underlying mathematics: HC0 through HC5m and $\text{HC}_\beta$ all enter the same sandwich calculation after their adjustment factors have been computed.
+
+Validation is performed early and specifically. The package rejects rank-deficient models, models with $p \ge n$, non-finite coefficients or residuals, leverage values outside the admissible interval, and cases where $1-h_t$ is numerically nonpositive. For HC5, HC5m, and $\text{HC}_\beta$, method constants supplied through `...` are checked against their allowed names and scalar constraints. For $\text{HC}_\beta$, the truncation limits must lie in $(0,1)$, the lower limit must be smaller than the upper limit, the estimated beta parameters must be positive and finite, and the final weights must be positive and finite.
+
+The $\text{HC}_\beta$ implementation estimates the beta parameters by the method of moments from the truncated leverage complements $w_t$, and then applies the shrinkage defined in Equation \@ref(eq:shrinkage). The regularized incomplete beta function is not reimplemented in the package; instead, the numerically stable base R routine `stats::pbeta()` is used directly. This choice keeps the implementation short and delegates a delicate numerical routine to a well-tested standard library function.
+
+The package returns S3 objects rather than plain matrices whenever diagnostics are required. Objects of class `hcinfer_vcov` store covariance-level quantities, including the covariance matrix, residuals, leverage values, adjustment factors, method parameters, and model metadata. Objects of class `hcinfer` add the coefficient-level inferential table, null values, confidence level, and critical value, so that print, summary, plot, and extractor methods base their output on these shared structures. This common storage model keeps the reported inference and diagnostics tied to the same covariance calculation.
+
+The package dependencies are intentionally small and targeted. The \CRANpkg{cli} package formats console output [@Cli2026], \CRANpkg{tibble} stores tabular results [@Tibble2026], \CRANpkg{ggplot2} builds graphics [@Wickham2016Ggplot2], and \CRANpkg{purrr} and \CRANpkg{rlang} support functional programming and argument validation [@Purrr2026; @Rlang2026]. Figure \@ref(fig:architecture) maps the implementation files and package assets in the GitHub repository.
+
+```{r architecture, echo=FALSE, fig.cap="Repository-level architecture of hcinfer. The diagram separates the public API, the computational core, the S3 output layer, and the surrounding support files and package assets.", fig.alt="Architecture diagram. A fitted lm() object feeds a user-facing API layer with vcov_hc(), hcinfer(), and hc_methods(). This drives a computational core of model-info.R, hc-weights.R, vcov-hc.R, and hcinfer.R, which produces returned objects and S3 methods: hcinfer_vcov and hcinfer, with vcov(), coef(), tests(), confint(), summary(), print(), and plot(). Supporting infrastructure below covers support files and package assets such as data/, man/, vignettes/, tests/, and docs/."}
+knitr::include_graphics(
+  if (knitr::is_latex_output()) "figures/architecture.pdf" else "figures/architecture.png")
+```
+
+Figure \@ref(fig:logo) shows the \CRANpkg{hcinfer} package logo. At submission, version 0.2.0 is on CRAN, the GitHub development version is 0.2.0.9000, and documentation is available on the package website. The package can be installed from CRAN, from r-universe, or from the GitHub development repository; the GitHub route uses \CRANpkg{remotes} [@Remotes2024]. Together, these channels provide distinct access points for the stable release, the development source, and the package documentation.
+
+```{r logo, echo=FALSE, out.width="32%", fig.cap="The hcinfer package logo. The package implements heteroskedasticity-consistent inference for linear models; suggestions and improvements are welcome through GitHub issues and pull requests.", fig.alt="The hcinfer package logo."}
+knitr::include_graphics(
+  if (knitr::is_latex_output()) "figures/logo.png" else "figures/logo.png")
+```
+
+The package can be installed in three ways depending on whether a stable release or a development snapshot is preferred. CRAN provides the published release, while r-universe and GitHub provide current development builds. The non-evaluated commands below document each route without changing the reader's R library during article rendering.
+
+```{r install, eval=FALSE}
+install.packages("hcinfer")
+install.packages("hcinfer", repos = c(
+  "https://prdm0.r-universe.dev",
+  "https://cloud.r-project.org"
+))
+remotes::install_github("prdm0/hcinfer", force = TRUE)
+```
+
+# Worked example
+
+To illustrate the use of the package in a practical setting, we consider data on public education expenditures across the U.S. states. The dataset, included in the package, contains three variables. The response variable `expenditure` is the annual K-12 per-pupil spending, measured in U.S. dollars. These expenditures include instructional costs, teacher salaries and benefits, administrative expenses, support staff, transportation, and facilities, with 2025 as the reference year. The variable `income` is the 2024 nominal per capita income for each state, as reported by the *Bureau of Economic Analysis*. Finally, `south` is a regional indicator variable. The values of the two continuous variables were obtained from the *World Population Review* and refer to 2024; the data refer to the 50 U.S. states plus the District of Columbia.
+The `south` indicator takes the value 1 for the Southern states (Alabama, Arkansas, Delaware, Florida, Georgia, Kentucky, Louisiana, Maryland, Mississippi, North Carolina, Oklahoma, South Carolina, Tennessee, Texas, Virginia, and West Virginia) as well as the District of Columbia (a federal district classified by the *Census Bureau* as part of the *South Atlantic* subregion), and 0 otherwise.
+
+We consider the intercept-free linear regression model given by
+\begin{equation}
+y_t = \beta_2 x_{t2} + \beta_3 x_{t2} x_{t3} + e_t, \quad t = 1, \ldots, 51,
+(\#eq:educ)
+\end{equation}
+where $y_t$ denotes the annual per-pupil spending in jurisdiction $t$, and $x_{t2}$ is per capita income scaled by $10^{-4}$ for numerical convenience (that is, measured in units of ten thousand dollars). The variable $x_{t3}$ is the regional indicator, taking the value 1 for Southern states and 0 otherwise, while $x_{t2}x_{t3}$ is the interaction term between scaled income and Southern-region membership. The intercept-free specification in Equation \@ref(eq:educ) is motivated by the natural proportionality between educational expenditures and per capita income. It is reasonable to assume that, in the complete absence of income, the expected per-pupil expenditure would also be zero.
+
+```{r fit-model}
+library(hcinfer)
+
+data("PublicSchools2", package = "hcinfer")
+df <- PublicSchools2
+df$scaled_income <- df$income / 10000
+
+fit    <- lm(expenditure ~ scaled_income + scaled_income:south - 1, data = df)
+result <- hcinfer(fit)
+```
+
+The ordinary least squares estimates are $\hat{\beta}_2 = 4100.65$ and $\hat{\beta}_3 = -322.66$. The estimate of $\hat{\beta}_2$ indicates that an increase of \$10,000 in per capita income is associated with an increase of \$4100.65 in average annual per-pupil spending for jurisdictions outside the South. The negative sign of $\hat{\beta}_3$ suggests that Southern states spend less per pupil than non-Southern states with the same level of per capita income. The primary objective is to test the null hypothesis $\mathcal{H}_0 \colon \beta_3 = 0$ against the alternative hypothesis $\mathcal{H}_1 \colon \beta_3 \neq 0$. Under the null hypothesis, the effect of income on educational spending is the same across all regions. Under the alternative, the South exhibits a different regional pattern.
+
+Figure \@ref(fig:scatter) displays the scatter plot together with the fitted regression lines, allowing a visual comparison of these two scenarios. The plot reveals a clear positive linear association between per capita income and per-pupil spending. Observations from the South ($x_{t3}=1$) and from the remaining regions ($x_{t3}=0$) follow the same overall trend. The fitted regression lines obtained by setting the indicator variable equal to one and zero closely track the full set of observations in both regions, and the slopes of the two fitted lines are similar throughout the range of the data. This visual pattern provides preliminary evidence that there is no meaningful regional difference.
+
+```{r scatter, echo=FALSE, fig.cap="Scatter plot and fitted regression lines (constrained to pass through the origin) relating annual K-12 per-pupil spending to per capita income for Southern states and the remaining U.S. states.", fig.alt="Scatter plot of expenditure against scaled per capita income. Points are colored by region. Two fitted regression lines, constrained to pass through the origin, are overlaid: one for Southern states and one for the remaining states. The two lines have similar positive slopes over the range of the data."}
+ggplot(df, aes(x = scaled_income, y = expenditure)) +
+  geom_point(aes(color = factor(south)), alpha = 0.8, size = 2.2) +
+  geom_abline(
+    intercept = 0,
+    slope = coef(fit)["scaled_income"],
+    color = "#2c5f8a",
+    linewidth = 0.9
+  ) +
+  geom_abline(
+    intercept = 0,
+    slope = coef(fit)["scaled_income"] + coef(fit)["scaled_income:south"],
+    color = "#c0392b",
+    linewidth = 0.9
+  ) +
+  scale_color_manual(
+    name = "Region",
+    values = c(`0` = "#7A8896", `1` = "#c0392b"),
+    labels = c("0" = "non-South", "1" = "South")
+  ) +
+  labs(
+    x = "Per capita income (scaled by 10,000 USD)",
+    y = "K-12 per-pupil expenditure (USD)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+```
+
+The `hcinfer()` function returns all the quantities required for statistical inference. The `confint()` and `tests()` methods extract the robust confidence intervals and Wald test results, respectively. Both methods return tibbles that can be filtered or combined with results from other covariance estimators.
+
+```{r confint-tests}
+confint(result)
+tests(result)[c("term", "std_error", "z_value", "p_value")]
+```
+
+The $\text{HC}_\beta$ standard error of $\hat{\beta}_3$ is $254.58$, and the corresponding Wald statistic for testing $\beta_3 = 0$ is $z = -1.27$, with a $p$-value of $0.205$. Accordingly, the test based on the $\text{HC}_\beta$ estimator does not reject the null hypothesis at the 10\% significance level. By contrast, the corresponding test for the coefficient $\beta_2$ provides strong evidence against the null hypothesis, with $z = 25.43$ and $p$-value $< 0.0001$, confirming a positive association between per capita income and annual per-pupil spending regardless of region. The 95\% $\text{HC}_\beta$ confidence interval for $\beta_3$ is $[-821.62, 176.31]$, which is consistent with the absence of evidence against the null hypothesis.
+
+Model selection criteria reinforce these findings. The model including the interaction term yields an adjusted $R^2$ of $0.9650$, an $\mathrm{AIC}$ (Akaike information criterion) of $978.43$, and a $\mathrm{BIC}$ (Bayesian information criterion) of $984.22$. The simpler model without the interaction term ($y_t = \beta_2 x_{t2} + e_t$) has an adjusted $R^2$ of $0.9643$, the same $\mathrm{AIC}$ value of $978.43$, and a smaller $\mathrm{BIC}$ of $982.29$. Thus, including the interaction term produces virtually no improvement in the adjusted $R^2$ while slightly increasing the BIC. These model selection criteria are therefore consistent with the conclusion drawn from the Wald test. From the standpoint of model selection and the principle of parsimony, the simpler model without the regional interaction is preferable.
+
+The `summary()` method consolidates the results into a single output. It reports model metadata, including the selected covariance estimator, observation leverages, adjustment factors, and the tables of hypothesis tests and confidence intervals. When the $\text{HC}_\beta$ estimator is used, the output also reports the estimated beta-distribution parameters (here, $\tilde{a} = 27.57$ and $\tilde{b} = 1.60$). The `plot()` method produces a forest plot displaying the confidence intervals for the regression coefficients. Figure \@ref(fig:intervals) shows this plot for the education-expenditure regression.
+
+```{r intervals, echo=FALSE, fig.cap="HCbeta confidence intervals for the coefficients of the education-expenditure regression (intercept-free model). The vertical dashed line indicates the null value used in the coefficient-level hypothesis tests.", fig.alt="Forest plot of HCbeta confidence intervals for the two regression coefficients. Each row shows a horizontal interval with a point estimate and a vertical dashed line marking the null value used for the Wald tests."}
+plot(result)
+```
+
+With $p = 2$ regression coefficients and $n = 51$ observations, the average leverage is $\bar{h} = p/n \approx 0.039$. The most commonly used thresholds for identifying leverage points are $2p/n \approx 0.078$ and $3p/n \approx 0.118$. The leverage values of three jurisdictions exceed the lower threshold of $2p/n$: the District of Columbia ($h_9 = 0.188$), Maryland ($h_{21} = 0.088$), and Virginia ($h_{47} = 0.081$). Only the District of Columbia exceeds the more stringent threshold of $3p/n$, identifying it as a high-leverage observation. Maryland and Virginia fall into an intermediate range and may be regarded as moderately high-leverage observations. Notably, both belong to the Southern region and therefore contribute to the interaction term in the fitted model.
+
+These leverage values are readily explained by the underlying data. The District of Columbia is located between Maryland and Virginia and has a 2024 per capita income of \$77,348, the highest value in the sample. This combination of exceptionally high income and membership in the Southern group places it far from the bulk of the observations in the predictor space, causing its leverage to exceed the $3p/n$ threshold. Consequently, it is the most atypical design point in the dataset from the perspective of leverage.
+
+The vector of leverage values can be extracted from the object returned by `vcov_hc()` and is also available in the object returned by `hcinfer()`. Comparing these values with conventional thresholds identifies observations that warrant closer inspection. The evaluated code below separates moderate and high-leverage cases for the fitted model.
+
+```{r leverage}
+cov_hcbeta <- vcov_hc(fit, type = "hcbeta")
+h <- cov_hcbeta$leverage
+p <- 2
+n <- length(h)
+
+# Mild leverage (> 2p/n and <= 3p/n)
+unname(which(h > 2 * p / n & h <= 3 * p / n))
+
+# High leverage (> 3p/n)
+unname(which(h > 3 * p / n))
+```
+
+The visual diagnostic for the adjustment factors can be obtained via the `plot()` method applied to a covariance object. This call is evaluated to verify the method while its single-method plot is hidden, because Figure \@ref(fig:weights) provides the more informative four-method comparison. The code remains visible so readers can reproduce the individual diagnostic interactively.
+
+```{r plot-cov, fig.show="hide"}
+plot(cov_hcbeta)
+```
+
+Figure \@ref(fig:weights) displays the adjustment factors $g_t$ used by the HC3, HC4, HC4m, and $\text{HC}_\beta$ estimators as functions of the leverage values ($h_t$). The panels use different vertical scales, each determined by the range of the corresponding adjustment factors. For the District of Columbia, HC4 multiplies the squared residual by a factor of $2.30$, HC4m uses a factor of $1.68$, and HC3 applies a factor of $1.52$. By contrast, the $\text{HC}_\beta$ estimator uses an adjustment factor of $5.52$. This difference arises because $\text{HC}_\beta$ does not base its correction solely on the leverage of an individual observation. Instead, it incorporates the entire empirical distribution of the leverage values through a fitted beta distribution, producing an adjustment that can be larger than fixed-power corrections for the most influential points without growing unboundedly with extreme leverage.
+
+```{r weights, echo=FALSE, fig.cap="Adjustment factors $g_t$ versus leverage values $h_t$ for the education-expenditure regression (intercept-free model with an interaction term). Red points correspond to observations whose leverage exceeds the conventional high-leverage threshold of $3p/n$.", fig.alt="Four-panel scatter plot of adjustment factors against leverage for HC3, HC4, HC4m, and HCbeta. Each panel uses a free vertical scale. A dashed vertical line marks the 3p/n high-leverage threshold. Points beyond the threshold are highlighted in red."}
+hc_types <- c("hc3", "hc4", "hc4m", "hcbeta")
+weights_plot_df <- do.call(rbind, lapply(hc_types, function(tp) {
+  obj <- vcov_hc(fit, type = tp)
+  data.frame(
+    h_t = unname(obj$leverage),
+    g_t = unname(obj$weights),
+    method = obj$label
+  )
+}))
+weights_plot_df$method <- factor(
+  weights_plot_df$method,
+  levels = c("HC3", "HC4", "HC4m", "HCbeta")
+)
+pp <- 2
+nn <- length(cov_hcbeta$leverage)
+w_threshold <- 3 * pp / nn
+
+ggplot(weights_plot_df, aes(x = h_t, y = g_t)) +
+  geom_vline(
+    xintercept = w_threshold,
+    linewidth = 0.35,
+    linetype = "dashed",
+    color = "#c0392b"
+  ) +
+  geom_point(
+    aes(color = h_t > w_threshold),
+    size = 2.4,
+    alpha = 0.9
+  ) +
+  facet_wrap(~ method, scales = "free_y") +
+  scale_color_manual(
+    name = NULL,
+    values = c(`FALSE` = "#2c5f8a", `TRUE` = "#c0392b"),
+    breaks = c(FALSE, TRUE),
+    labels = c("regular leverage", "high leverage")
+  ) +
+  labs(
+    x = expression(h[t]),
+    y = expression(g[t])
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+```
+
+Table \@ref(tab:comparison) summarizes the robust inference for the coefficient $\beta_3$ obtained from the nine covariance estimators implemented in the package. For each estimator, the table reports the robust standard error, the $p$-value for the test of $\mathcal{H}_0 \colon \beta_3 = 0$, the largest adjustment factor $g_t$, and the corresponding 95\% confidence interval. The robust standard errors range from $194.58$ (HC0) to $254.58$ ($\text{HC}_\beta$). This variation reflects the different ways in which the estimators account for the high-leverage District of Columbia observation. At the 5\% significance level, all nine tests lead to the same conclusion that there is no evidence that the effect of per capita income on educational spending differs between the two regions. At the 10\% level, however, the HC0-based test rejects the null hypothesis ($p$-value $=0.097$), illustrating how inference can depend on the covariance estimator when a high-leverage observation is present.
+
+```{r comparison, echo=FALSE}
+hc_all <- c("hc0", "hc1", "hc2", "hc3", "hc4", "hc4m", "hc5", "hc5m", "hcbeta")
+hc_labels <- c("HC0", "HC1", "HC2", "HC3", "HC4", "HC4m", "HC5", "HC5m", "HCbeta")
+
+comparison_rows <- lapply(seq_along(hc_all), function(i) {
+  tp <- hc_all[i]
+  res <- hcinfer(fit, type = tp)
+  test_tab <- tests(res)
+  ci_tab <- confint(res)
+  test_row <- match("scaled_income:south", test_tab$term)
+  ci_row <- match("scaled_income:south", ci_tab$term)
+  data.frame(
+    Estimator = hc_labels[i],
+    `Standard error` = sprintf("%.4f", test_tab$std_error[test_row]),
+    `p-value` = sprintf("%.4f", test_tab$p_value[test_row]),
+    `max g_t` = sprintf("%.4f", max(res$weights)),
+    `95% CI` = sprintf(
+      "[%.1f, %.1f]",
+      ci_tab$conf_low[ci_row],
+      ci_tab$conf_high[ci_row]
+    ),
+    check.names = FALSE
+  )
+})
+comparison_df <- do.call(rbind, comparison_rows)
+knitr::kable(
+  comparison_df,
+  format = if (knitr::is_latex_output()) "latex" else "html",
+  booktabs = TRUE,
+  caption = "Robust inference for the income-South interaction coefficient in the public school expenditure regression, intercept-free model. The OLS estimate is -322.66, and income is scaled to units of ten thousand U.S. dollars."
+)
+```
+
+To assess the robustness of the inference for the coefficient $\beta_3$, we examine the effect of removing the District of Columbia from the sample. Excluding this observation changes the ordinary least squares estimates to $\hat{\beta}_2 = 4100.65$ and $\hat{\beta}_3 = -394.79$. Figure \@ref(fig:weights-nodc) displays the corresponding adjustment factors for this reduced sample. In this setting, no observation exceeds the conventional high-leverage threshold of $3p/n$. The only jurisdictions with leverage values above the moderate threshold of $2p/n$ are Maryland and Virginia. Both belong to the Southern region and therefore contribute to the interaction term, with Maryland becoming the highest-leverage observation ($h_{21} = 0.109$).
+
+```{r weights-nodc, echo=FALSE, fig.cap="Adjustment factors $g_t$ plotted against leverage values $h_t$ for the intercept-free model with an interaction term, fitted to the subsample excluding the District of Columbia. Because no observation exceeds the common high-leverage threshold of $3p/n$, the adjustment factors vary more smoothly across the sample, and the plot() method does not highlight any observations in red.", fig.alt="Four-panel scatter plot of adjustment factors against leverage for HC3, HC4, HC4m, and HCbeta fitted on the subsample without the District of Columbia. A dashed vertical line marks the 3p/n threshold; no points are highlighted as high leverage."}
+fit_nodc <- lm(
+  expenditure ~ scaled_income + scaled_income:south - 1,
+  data = df[df$state != "District of Columbia", ]
+)
+pp_nodc <- 2
+nn_nodc <- nobs(fit_nodc)
+w_threshold_nodc <- 3 * pp_nodc / nn_nodc
+
+weights_nodc_df <- do.call(rbind, lapply(hc_types, function(tp) {
+  obj <- vcov_hc(fit_nodc, type = tp)
+  data.frame(
+    h_t = unname(obj$leverage),
+    g_t = unname(obj$weights),
+    method = obj$label
+  )
+}))
+weights_nodc_df$method <- factor(
+  weights_nodc_df$method,
+  levels = c("HC3", "HC4", "HC4m", "HCbeta")
+)
+
+ggplot(weights_nodc_df, aes(x = h_t, y = g_t)) +
+  geom_vline(
+    xintercept = w_threshold_nodc,
+    linewidth = 0.35,
+    linetype = "dashed",
+    color = "#c0392b"
+  ) +
+  geom_point(
+    aes(color = h_t > w_threshold_nodc),
+    size = 2.4,
+    alpha = 0.9
+  ) +
+  facet_wrap(~ method, scales = "free_y") +
+  scale_color_manual(
+    name = NULL,
+    values = c(`FALSE` = "#2c5f8a", `TRUE` = "#c0392b"),
+    breaks = c(FALSE, TRUE),
+    labels = c("regular leverage", "high leverage")
+  ) +
+  labs(
+    x = expression(h[t]),
+    y = expression(g[t])
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+```
+
+Table \@ref(tab:comparison-nodc) reports the robust standard errors of $\hat{\beta}_3$, the $p$-values for testing $\mathcal{H}_0\colon \beta_3 = 0$, the largest adjustment factors $g_t$, and the corresponding 95\% confidence intervals based on the reduced dataset. After removing the District of Columbia, the tests based on the HC0, HC1, HC2, HC3, HC4, HC4m, HC5, and HC5m estimators all reject the null hypothesis at the 10\% significance level. In sharp contrast, the inference based on the $\text{HC}_\beta$ estimator remains essentially unchanged, yielding a $p$-value of $0.118$ and therefore continuing to reject neither the null hypothesis at the 10\% level nor at the more stringent 5\% level. Notably, this is the same inferential conclusion obtained from the full sample, which suggests that the $\text{HC}_\beta$ correction is comparatively stable in the presence of the high-leverage observation rather than being driven by it.
+
+```{r comparison-nodc, echo=FALSE}
+comparison_nodc_rows <- lapply(seq_along(hc_all), function(i) {
+  tp <- hc_all[i]
+  res <- hcinfer(fit_nodc, type = tp)
+  test_tab <- tests(res)
+  ci_tab <- confint(res)
+  test_row <- match("scaled_income:south", test_tab$term)
+  ci_row <- match("scaled_income:south", ci_tab$term)
+  data.frame(
+    Estimator = hc_labels[i],
+    `Standard error` = sprintf("%.4f", test_tab$std_error[test_row]),
+    `p-value` = sprintf("%.4f", test_tab$p_value[test_row]),
+    `max g_t` = sprintf("%.4f", max(res$weights)),
+    `95% CI` = sprintf(
+      "[%.1f, %.1f]",
+      ci_tab$conf_low[ci_row],
+      ci_tab$conf_high[ci_row]
+    ),
+    check.names = FALSE
+  )
+})
+comparison_nodc_df <- do.call(rbind, comparison_nodc_rows)
+knitr::kable(
+  comparison_nodc_df,
+  format = if (knitr::is_latex_output()) "latex" else "html",
+  booktabs = TRUE,
+  caption = "Robust inference for the interaction coefficient in the subsample excluding the District of Columbia, intercept-free model. The OLS estimate is -394.79 and the subsample has n = 50 observations."
+)
+```
+
+An alternative way to assess the influence of the District of Columbia on the inference is to retain this observation in the dataset while changing only its regional classification. When the District of Columbia is no longer classified as part of the South, the ordinary least squares estimate becomes $\hat{\beta}_3 = -393.89$. The corresponding $\text{HC}_\beta$ standard error is $241.23$, and the resulting Wald test yields a $p$-value of $0.102$. Thus, the inferential conclusion remains unchanged.
+
+As an additional sensitivity analysis, we consider the corresponding regression model with an intercept. The ordinary least squares estimates are $\hat{\beta}_1 = -3813.72$, $\hat{\beta}_2 = 4932.66$, and $\hat{\beta}_3 = -299.07$. Under the $\text{HC}_\beta$ covariance estimator, the corresponding standard errors are $2015.94$, $493.44$, and $205.20$, yielding $p$-values of $0.059$, $1.58 \times 10^{-23}$, and $0.145$, respectively. The intercept is therefore not statistically significant at the 5\% level, providing further support for the intercept-free specification adopted throughout the analysis.
+
+Table \@ref(tab:gt-comparison) compares the largest adjustment factors $g_t$ under the intercept-free and intercept models. Including an intercept increases the leverage values, with the District of Columbia reaching $h_9 = 0.555$, well above the common high-leverage threshold of $3p/n = 0.176$. The classical HC estimators respond very differently to this increase. Under HC4, the largest adjustment factor rises from $2.30$ to $25.39$. For HC5, it increases from $2.30$ to $207.66$, and for HC5m from $2.84$ to $466.15$. By contrast, the corresponding maximum under $\text{HC}_\beta$ changes only marginally, from $5.52$ to $5.29$. This comparison illustrates that, even in the presence of extremely high leverage, the $\text{HC}_\beta$ estimator produces remarkably stable adjustment factors, in marked contrast to the classical HC estimators whose correction grows rapidly with leverage.
+
+```{r gt-comparison, echo=FALSE}
+fit_intercept <- lm(
+  expenditure ~ scaled_income + scaled_income:south,
+  data = df
+)
+gt_rows <- lapply(seq_along(hc_all), function(i) {
+  tp <- hc_all[i]
+  g_noint <- max(vcov_hc(fit, type = tp)$weights)
+  g_int <- max(vcov_hc(fit_intercept, type = tp)$weights)
+  data.frame(
+    Estimator = hc_labels[i],
+    `max g_t (no intercept)` = sprintf("%.2f", g_noint),
+    `max g_t (with intercept)` = sprintf("%.2f", g_int),
+    check.names = FALSE
+  )
+})
+gt_df <- do.call(rbind, gt_rows)
+knitr::kable(
+  gt_df,
+  format = if (knitr::is_latex_output()) "latex" else "html",
+  booktabs = TRUE,
+  caption = "Maximum adjustment factor $g_t$ for the interaction coefficient under the intercept-free and intercept models. The intercept-free model is $y_t = \\beta_2 x_{t2} + \\beta_3 x_{t2} x_{t3} + e_t$ and the intercept model is $y_t = \\beta_1 + \\beta_2 x_{t2} + \\beta_3 x_{t2} x_{t3} + e_t$. HCbeta maintains stable adjustment factors across the two specifications."
+)
+```
+
+# Availability and reproducibility
+
+The \CRANpkg{hcinfer} package is available on CRAN at <https://CRAN.R-project.org/package=hcinfer>. Its development repository is hosted on GitHub at <https://github.com/prdm0/hcinfer>, and its documentation website is available at <https://prdm0.github.io/hcinfer/>. The GitHub repository is the preferred channel for bug reports, feature requests, and proposed improvements through issues and pull requests. The package is distributed under the MIT license, and its CRAN-assigned DOI is <https://doi.org/10.32614/CRAN.package.hcinfer>. Development uses continuous integration through GitHub Actions [@GitHubActions2026], including automated package checks across supported platforms. This infrastructure supports reproducibility, API stability, and safe review of proposed changes.
+
+The article and its supporting scripts regenerate all tables and figures from the installed package, so the numerical output is reproducible from the evaluated R chunks rather than being hard-coded. The scripts used to regenerate these assets rely on the installed CRAN package and can alternatively load the local development version when \CRANpkg{pkgload} is installed [@Pkgload2026]. Supporting package infrastructure uses \CRANpkg{dplyr} for data manipulation in examples, \CRANpkg{knitr} and \CRANpkg{rmarkdown} for vignette rendering, and \CRANpkg{testthat} for automated testing [@Dplyr2026; @Knitr2025; @Rmarkdown2026; @Wickham2011Testthat].
+
+The test suite covers covariance estimators, HC weight calculations, S3 methods, confidence intervals, hypothesis tests, graphical output, and numerical anchors derived from the $\text{HC}_\beta$ implementation. Running the article rebuilds the worked example, the comparison tables, and the diagnostic figures from the same package code that the test suite checks. Data and software supporting the worked example are publicly available through the package on CRAN and through the GitHub repository, which together cover software availability and data availability for the results reported here.
+
+# Summary
+
+The \CRANpkg{hcinfer} package implements a focused workflow for heteroskedasticity-consistent inference in ordinary least squares regression. Its main contribution is to combine covariance estimation, coefficient-level normal Wald inference, method-specific tuning constants, diagnostics, and graphical summaries within a compact interface. This integration is especially useful when the choice of HC estimator materially affects inference, as often happens in small or moderate samples with high-leverage observations. The implementation also evaluates the common HC sandwich through a vector of diagonal weights, direct cross-products, and a single Cholesky factorization per covariance call, thereby avoiding a dense diagonal matrix and an explicit inverse.
+
+The implementation is intentionally restricted to ordinary least squares models fitted with `lm()`. The package does not fit generalized linear models, mixed-effects models, or nonlinear regression models. It also does not provide bootstrap confidence intervals or Student $t$ reference distributions. These restrictions keep the statistical target well defined: normal Wald inference based on HC covariance estimators for linear regression, which is the regime where the choice of HC estimators has direct practical consequences.
+
+The default $\text{HC}_\beta$ estimator is designed to provide a leverage-sensitive correction while avoiding the largest adjustment factors produced by some high-leverage estimators in examples such as the public-schools regression. This default, however, does not eliminate the need for sensitivity analysis. The package therefore makes estimator comparison straightforward and exposes the underlying leverage values and adjustment factors, so that users can compare estimators directly rather than relying on a single default. A practical reporting strategy is to present the primary $\text{HC}_\beta$ analysis, inspect the diagnostic plots, and compare the results with classical HC estimators whenever the substantive conclusions depend on the reported standard errors.
+
+# Acknowledgements {-}
+
+Conselho Nacional de Desenvolvimento Científico e Tecnológico (grant 304646/2023-7). The authors thank the developers and maintainers of R and the R package ecosystem used by \CRANpkg{hcinfer}.

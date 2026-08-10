@@ -1,0 +1,11 @@
+hcinfer
+ggplot2
+dplyr
+knitr
+kableExtra
+rmarkdown
+rjtools
+bookdown
+distill
+tinytex
+pdftools

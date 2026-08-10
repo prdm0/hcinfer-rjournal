@@ -1,0 +1,21 @@
+/* R Journal web article: justified body and abstract text with automatic
+   hyphenation. HTML only; the PDF is justified by LaTeX. */
+d-article p,
+d-article li,
+d-abstract p,
+.d-title p:not(.subtitle) {
+  text-align: justify;
+  text-justify: inter-word;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  -ms-hyphens: auto;
+}
+
+/* Center every table horizontally within the body column, matching the
+   centered figures. Full-width tables stay flush; narrower tables (few
+   columns) are centered instead of left-aligned. HTML only; the PDF is
+   centered by LaTeX \centering in each table environment. */
+d-article table {
+  margin-left: auto;
+  margin-right: auto;
+}
