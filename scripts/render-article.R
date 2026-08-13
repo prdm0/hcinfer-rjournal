@@ -1,9 +1,8 @@
 # Render the hcinfer R Journal article to PDF and HTML.
 #
-# The article is an R Markdown document that knits to both
-# rjtools::rjournal_pdf_article and rjtools::rjournal_web_article. Rendering
-# output_format = "all" produces hcinfer.pdf and hcinfer.html next to the
-# source Rmd.
+# The article is an R Markdown document that renders with both
+# rjtools::rjournal_pdf_article and rjtools::rjournal_web_article. This script
+# writes hcinfer.pdf and index.html next to the source Rmd.
 #
 # Known failure mode and automatic correction:
 #   rjtools issue #117. The bundled RJwrapper.tex defines CSLReferences for
@@ -51,7 +50,19 @@ if (!file.exists(file.path(article_dir, rmd))) {
 setwd(article_dir)
 
 render_all <- function() {
-  rmarkdown::render(rmd, output_format = "all", quiet = FALSE)
+  # rjournal_pdf_article requires a .tex target and emits the same-stem PDF.
+  rmarkdown::render(
+    rmd,
+    output_format = "rjtools::rjournal_pdf_article",
+    output_file = "hcinfer.tex",
+    quiet = FALSE
+  )
+  rmarkdown::render(
+    rmd,
+    output_format = "rjtools::rjournal_web_article",
+    output_file = "index.html",
+    quiet = FALSE
+  )
 }
 
 # Try the primary render with whatever pandoc is active (system or IDE).
@@ -115,12 +126,12 @@ if (!ok) {
 }
 
 pdf_path <- file.path(article_dir, "hcinfer.pdf")
-html_path <- file.path(article_dir, "hcinfer.html")
+html_path <- file.path(article_dir, "index.html")
 if (!file.exists(pdf_path) || file.info(pdf_path)$size == 0) {
   stop("Render completed but hcinfer.pdf is missing or empty.")
 }
 if (!file.exists(html_path) || file.info(html_path)$size == 0) {
-  stop("Render completed but hcinfer.html is missing or empty.")
+  stop("Render completed but index.html is missing or empty.")
 }
 
 message("Render complete: ", pdf_path, " and ", html_path)
