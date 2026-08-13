@@ -144,10 +144,43 @@ fit_no_dc <- lm(expenditure ~ scaled_income + scaled_income:south - 1,
 weights_plot_nodc <- build_weights(fit_no_dc, public_schools_no_dc)
 save_both(weights_plot_nodc, "weights-leverage-noDC", width = 8, height = 6)
 
+# ---------------------------------------------------------------------------
+# fig:fgls-sd
+# Fitted conditional standard deviation from the multiplicative-variance FGLS
+# model against scaled income, with the homoskedastic OLS residual standard
+# deviation as a flat dashed reference. Mirrors the inline article chunk.
+# ---------------------------------------------------------------------------
+
+gls_fit <- gls_mult(fit, variance = ~ scaled_income)
+fgls_sd_df <- data.frame(
+  scaled_income = public_schools$scaled_income,
+  cond_sd = sqrt(gls_fit$fitted_variances)
+)
+fgls_sd_plot <- ggplot2::ggplot(
+  fgls_sd_df,
+  ggplot2::aes(x = scaled_income, y = cond_sd)
+) +
+  ggplot2::geom_hline(
+    yintercept = sigma(fit),
+    linetype = "dashed", color = "#c0392b", linewidth = 0.9
+  ) +
+  ggplot2::geom_point(color = "#2c5f8a", alpha = 0.8, size = 2.2) +
+  ggplot2::labs(
+    x = "Per capita income (scaled by 10,000 USD)",
+    y = "Fitted conditional standard deviation (USD)"
+  ) +
+  ggplot2::theme_minimal(base_size = 12) +
+  ggplot2::theme(
+    legend.position = "bottom",
+    panel.grid.minor = ggplot2::element_blank()
+  )
+save_both(fgls_sd_plot, "fgls-sd", width = 7, height = 4.5)
+
 cat("Figures written to figures/:\n")
 cat("  scatter.pdf, scatter.png\n")
 cat("  hcbeta-intervals.pdf, hcbeta-intervals.png\n")
 cat("  weights-leverage.pdf, weights-leverage.png\n")
 cat("  weights-leverage-noDC.pdf, weights-leverage-noDC.png\n")
+cat("  fgls-sd.pdf, fgls-sd.png\n")
 
 invisible(NULL)

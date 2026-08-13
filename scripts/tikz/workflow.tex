@@ -109,30 +109,50 @@
 \begin{tikzpicture}[x=1cm,y=1cm]
   \node[hcentry, minimum width=34mm] (fit) at (0,0) {stats::lm() fit};
 
-  \node[hccore] (vcovhc) at (3.0,1.25) {vcov\_hc()};
+  \node[hccore] (vcovhc) at (3.0,4.2) {vcov\_hc()};
 
-  \node[hccore] (hcinferfun) at (3.0,-1.25) {hcinfer()};
+  \node[hccore] (hcinferfun) at (3.0,1.4) {hcinfer()};
 
-  \node[hccard, draw=hcobject, fill=hcobjectfill] (covcard) at (8.4,1.25) {%
+  \node[hccore] (bootpairs) at (3.0,-1.4) {boot\_pairs()};
+
+  \node[hccore] (glsmult) at (3.0,-4.2) {gls\_mult()};
+
+  \node[hccard, draw=hcobject, fill=hcobjectfill] (covcard) at (8.4,4.2) {%
     \textbf{S3 object: \texttt{hcinfer\_vcov}}\\[-1pt]
     {\scriptsize\color{hcline} covariance matrix, residuals, leverage, adjustment factors, method parameters}\\[3pt]
     {\scriptsize\bfseries\ttfamily vcov() \quad plot()}
   };
 
-  \node[hccard, draw=hcobject, fill=hcobjectfill] (infercard) at (8.4,-1.25) {%
+  \node[hccard, draw=hcobject, fill=hcobjectfill] (infercard) at (8.4,1.4) {%
     \textbf{S3 object: \texttt{hcinfer}}\\[-1pt]
     {\scriptsize\color{hcline} covariance object quantities, tests, confidence intervals, null values, critical value}\\[3pt]
     {\scriptsize\bfseries\ttfamily tests() \quad confint() \quad summary() \quad plot()}
   };
 
+  \node[hccard, draw=hcobject, fill=hcobjectfill] (bootcard) at (8.4,-1.4) {%
+    \textbf{S3 object: \texttt{hcinfer\_boot}}\\[-1pt]
+    {\scriptsize\color{hcline} bootstrap replicates, standard errors, confidence intervals}\\[3pt]
+    {\scriptsize\bfseries\ttfamily coef() \quad vcov() \quad confint() \quad plot()}
+  };
+
+  \node[hccard, draw=hcobject, fill=hcobjectfill] (glscard) at (8.4,-4.2) {%
+    \textbf{S3 object: \texttt{gls\_mult}}\\[-1pt]
+    {\scriptsize\color{hcline} mean and dispersion coefficients, model-based covariance, fitted variances, log-likelihood}\\[3pt]
+    {\scriptsize\bfseries\ttfamily coef() \quad vcov() \quad tests() \quad confint() \quad summary() \quad plot() \quad logLik() \quad AIC() \quad BIC()}
+  };
+
   \draw[hcedge] (fit.east) -- (vcovhc.west);
   \draw[hcedge] (fit.east) -- (hcinferfun.west);
-  \coordinate (calllower) at ($(fit.west)+(-0.35,-1.25)$);
-  \coordinate (callupper) at ($(fit.west)+(-0.35,1.25)$);
+  \draw[hcedge] (fit.east) -- (bootpairs.west);
+  \draw[hcedge] (fit.east) -- (glsmult.west);
+  \coordinate (calllower) at ($(fit.west)+(-0.55,1.4)$);
+  \coordinate (callupper) at ($(fit.west)+(-0.55,4.2)$);
   \draw[hcinternaledge] (hcinferfun.west) -- (calllower)
     -- node[hclabel, left=1mm] {calls} (callupper)
     -- (vcovhc.west);
   \draw[hcedge] (vcovhc.east) -- (covcard.west);
   \draw[hcedge] (hcinferfun.east) -- (infercard.west);
+  \draw[hcedge] (bootpairs.east) -- (bootcard.west);
+  \draw[hcedge] (glsmult.east) -- (glscard.west);
 \end{tikzpicture}
 \end{document}

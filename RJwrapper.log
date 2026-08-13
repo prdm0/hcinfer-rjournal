@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.7.29)  10 AUG 2026 13:50
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.7.29)  13 AUG 2026 15:03
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -800,102 +800,113 @@ Package microtype Info: Loading generic protrusion settings for font family
 LaTeX Font Info:    Trying to load font information for U+fplmbb on input line 31.
 (/Users/prdm0/Library/TinyTeX/texmf-dist/tex/latex/psnfss/ufplmbb.fd
 File: ufplmbb.fd 2003/10/30 Fontinst v1.914 font definitions for U/fplmbb.
-) [2{/Users/prdm0/Library/TinyTeX/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-0.enc}] [3]
-<figures/workflow.pdf, id=119, 418.57379pt x 138.53758pt>
+) [2{/Users/prdm0/Library/TinyTeX/texmf-dist/fonts/enc/dvips/inconsolata/i4-t1-0.enc}] [3] [4]
+<figures/workflow.pdf, id=146, 424.26404pt x 316.92203pt>
 File: figures/workflow.pdf Graphic file (type pdf)
 <use figures/workflow.pdf>
-Package pdftex.def Info: figures/workflow.pdf  used on input line 138.
-(pdftex.def)             Requested size: 418.57277pt x 138.53723pt.
+Package pdftex.def Info: figures/workflow.pdf  used on input line 168.
+(pdftex.def)             Requested size: 424.263pt x 316.92125pt.
 
-Overfull \hbox (20.23419pt too wide) in paragraph at lines 138--139
+Overfull \hbox (25.92442pt too wide) in paragraph at lines 168--169
  [][] 
  []
 
-[4 <./figures/workflow.pdf>] [5] [6]
-<figures/sandwich-efficiency.pdf, id=177, 381.1791pt x 198.47952pt>
+[5] [6 <./figures/workflow.pdf>] [7] [8] [9]
+<figures/sandwich-efficiency.pdf, id=217, 381.1791pt x 198.47952pt>
 File: figures/sandwich-efficiency.pdf Graphic file (type pdf)
 <use figures/sandwich-efficiency.pdf>
-Package pdftex.def Info: figures/sandwich-efficiency.pdf  used on input line 236.
+Package pdftex.def Info: figures/sandwich-efficiency.pdf  used on input line 270.
 (pdftex.def)             Requested size: 381.17816pt x 198.47902pt.
 LaTeX Font Info:    Font shape `U/msa/m/n' will be
-(Font)              scaled to size 9.37807pt on input line 240.
+(Font)              scaled to size 9.37807pt on input line 274.
 LaTeX Font Info:    Font shape `U/msa/m/n' will be
-(Font)              scaled to size 7.29405pt on input line 240.
+(Font)              scaled to size 7.29405pt on input line 274.
 LaTeX Font Info:    Font shape `U/msa/m/n' will be
-(Font)              scaled to size 5.21004pt on input line 240.
+(Font)              scaled to size 5.21004pt on input line 274.
 LaTeX Font Info:    Font shape `U/msb/m/n' will be
-(Font)              scaled to size 9.37807pt on input line 240.
+(Font)              scaled to size 9.37807pt on input line 274.
 LaTeX Font Info:    Font shape `U/msb/m/n' will be
-(Font)              scaled to size 7.29405pt on input line 240.
+(Font)              scaled to size 7.29405pt on input line 274.
 LaTeX Font Info:    Font shape `U/msb/m/n' will be
-(Font)              scaled to size 5.21004pt on input line 240.
-[7]
-<figures/architecture.pdf, id=203, 227.4598pt x 280.15968pt>
+(Font)              scaled to size 5.21004pt on input line 274.
+[10 <./figures/sandwich-efficiency.pdf>]
+<figures/architecture.pdf, id=336, 227.4598pt x 362.6157pt>
 File: figures/architecture.pdf Graphic file (type pdf)
 <use figures/architecture.pdf>
-Package pdftex.def Info: figures/architecture.pdf  used on input line 255.
-(pdftex.def)             Requested size: 227.45923pt x 280.15898pt.
-<figures/logo.png, id=209, 914.41624pt x 947.54pt>
+Package pdftex.def Info: figures/architecture.pdf  used on input line 293.
+(pdftex.def)             Requested size: 227.45923pt x 362.61482pt.
+<figures/logo.png, id=342, 914.41624pt x 947.54pt>
 File: figures/logo.png Graphic file (type png)
 <use figures/logo.png>
-Package pdftex.def Info: figures/logo.png  used on input line 266.
+Package pdftex.def Info: figures/logo.png  used on input line 304.
 (pdftex.def)             Requested size: 127.47125pt x 132.07635pt.
-[8 <./figures/sandwich-efficiency.pdf>] [9 <./figures/architecture.pdf> <./figures/logo.png>] [10]
-<hcinfer_files/figure-latex/scatter-1.pdf, id=359, 459.7175pt x 307.1475pt>
+[11 <./figures/architecture.pdf>] [12 <./figures/logo.png>]
+<hcinfer_files/figure-latex/scatter-1.pdf, id=392, 459.7175pt x 307.1475pt>
 File: hcinfer_files/figure-latex/scatter-1.pdf Graphic file (type pdf)
 <use hcinfer_files/figure-latex/scatter-1.pdf>
-Package pdftex.def Info: hcinfer_files/figure-latex/scatter-1.pdf  used on input line 313.
+Package pdftex.def Info: hcinfer_files/figure-latex/scatter-1.pdf  used on input line 351.
 (pdftex.def)             Requested size: 459.71637pt x 307.14674pt.
 
-Overfull \hbox (61.37779pt too wide) in paragraph at lines 313--314
- [][] 
- []
-
-[11 <./hcinfer_files/figure-latex/scatter-1.pdf>]
-<hcinfer_files/figure-latex/intervals-1.pdf, id=376, 455.7025pt x 313.17pt>
-File: hcinfer_files/figure-latex/intervals-1.pdf Graphic file (type pdf)
-<use hcinfer_files/figure-latex/intervals-1.pdf>
-Package pdftex.def Info: hcinfer_files/figure-latex/intervals-1.pdf  used on input line 354.
-(pdftex.def)             Requested size: 455.70137pt x 313.16922pt.
-
-Overfull \hbox (57.3628pt too wide) in paragraph at lines 354--355
- [][] 
- []
-
-[12 <./hcinfer_files/figure-latex/intervals-1.pdf>]
-<hcinfer_files/figure-latex/weights-1.pdf, id=394, 459.7175pt x 300.12125pt>
-File: hcinfer_files/figure-latex/weights-1.pdf Graphic file (type pdf)
-<use hcinfer_files/figure-latex/weights-1.pdf>
-Package pdftex.def Info: hcinfer_files/figure-latex/weights-1.pdf  used on input line 400.
-(pdftex.def)             Requested size: 459.71637pt x 300.12051pt.
-
-Overfull \hbox (61.37779pt too wide) in paragraph at lines 400--401
+Overfull \hbox (61.37779pt too wide) in paragraph at lines 351--352
  [][] 
  []
 
 [13]
-<hcinfer_files/figure-latex/weights-nodc-1.pdf, id=404, 464.73625pt x 300.12125pt>
-File: hcinfer_files/figure-latex/weights-nodc-1.pdf Graphic file (type pdf)
-<use hcinfer_files/figure-latex/weights-nodc-1.pdf>
-Package pdftex.def Info: hcinfer_files/figure-latex/weights-nodc-1.pdf  used on input line 435.
-(pdftex.def)             Requested size: 464.7351pt x 300.12051pt.
+<hcinfer_files/figure-latex/intervals-1.pdf, id=400, 455.7025pt x 313.17pt>
+File: hcinfer_files/figure-latex/intervals-1.pdf Graphic file (type pdf)
+<use hcinfer_files/figure-latex/intervals-1.pdf>
+Package pdftex.def Info: hcinfer_files/figure-latex/intervals-1.pdf  used on input line 392.
+(pdftex.def)             Requested size: 455.70137pt x 313.16922pt.
 
-Overfull \hbox (66.39653pt too wide) in paragraph at lines 435--436
+Overfull \hbox (57.3628pt too wide) in paragraph at lines 392--393
  [][] 
  []
 
-[14 <./hcinfer_files/figure-latex/weights-1.pdf>] [15 <./hcinfer_files/figure-latex/weights-nodc-1.pdf>] [16] (./RJwrapper.bbl (./RJwrapper.brf)
+[14 <./hcinfer_files/figure-latex/scatter-1.pdf>] [15 <./hcinfer_files/figure-latex/intervals-1.pdf>]
+<hcinfer_files/figure-latex/weights-1.pdf, id=433, 459.7175pt x 300.12125pt>
+File: hcinfer_files/figure-latex/weights-1.pdf Graphic file (type pdf)
+<use hcinfer_files/figure-latex/weights-1.pdf>
+Package pdftex.def Info: hcinfer_files/figure-latex/weights-1.pdf  used on input line 438.
+(pdftex.def)             Requested size: 459.71637pt x 300.12051pt.
+
+Overfull \hbox (61.37779pt too wide) in paragraph at lines 438--439
+ [][] 
+ []
+
+[16] [17 <./hcinfer_files/figure-latex/weights-1.pdf>]
+<hcinfer_files/figure-latex/weights-nodc-1.pdf, id=457, 464.73625pt x 300.12125pt>
+File: hcinfer_files/figure-latex/weights-nodc-1.pdf Graphic file (type pdf)
+<use hcinfer_files/figure-latex/weights-nodc-1.pdf>
+Package pdftex.def Info: hcinfer_files/figure-latex/weights-nodc-1.pdf  used on input line 473.
+(pdftex.def)             Requested size: 464.7351pt x 300.12051pt.
+
+Overfull \hbox (66.39653pt too wide) in paragraph at lines 473--474
+ [][] 
+ []
+
+[18 <./hcinfer_files/figure-latex/weights-nodc-1.pdf>] [19]
+<hcinfer_files/figure-latex/fgls-sd-1.pdf, id=486, 459.7175pt x 314.17375pt>
+File: hcinfer_files/figure-latex/fgls-sd-1.pdf Graphic file (type pdf)
+<use hcinfer_files/figure-latex/fgls-sd-1.pdf>
+Package pdftex.def Info: hcinfer_files/figure-latex/fgls-sd-1.pdf  used on input line 568.
+(pdftex.def)             Requested size: 459.71637pt x 314.17297pt.
+
+Overfull \hbox (61.37779pt too wide) in paragraph at lines 568--569
+ [][] 
+ []
+
+[20] [21 <./hcinfer_files/figure-latex/fgls-sd-1.pdf>] (./RJwrapper.bbl (./RJwrapper.brf)
 \tf@brf=\write6
 \openout6 = `RJwrapper.brf'.
 
-[17] [18])
+[22] [23])
 
 LaTeX Font Warning: Font shape `T1/zi4/m/it' undefined
-(Font)              using `T1/zi4/m/n' instead on input line 525.
+(Font)              using `T1/zi4/m/n' instead on input line 606.
 
 LaTeX Font Info:    Font shape `T1/zi4/m/it' will be
-(Font)              scaled to size 10.20004pt on input line 525.
-) [19] (./RJwrapper.aux)
+(Font)              scaled to size 10.20004pt on input line 606.
+) [24] (./RJwrapper.aux)
  ***********
 LaTeX2e <2026-06-01>
 L3 programming layer <2026-05-26>
@@ -904,23 +915,23 @@ L3 programming layer <2026-05-26>
 LaTeX Font Warning: Some font shapes were not available, defaults substituted.
 
 Package rerunfilecheck Info: File `RJwrapper.out' has not changed.
-(rerunfilecheck)             Checksum: 6A2236713D2BD5C76B49D33B793AC1AC;1748.
+(rerunfilecheck)             Checksum: E54F04F1640B0B8B3C319150FCFCD40D;2770.
 Package rerunfilecheck Info: File `RJwrapper.brf' has not changed.
-(rerunfilecheck)             Checksum: CEF6601C7CB844091BA25B66B5832181;1447.
+(rerunfilecheck)             Checksum: F90C51CF173C130E21D74ECEF38EFC11;1694.
  ) 
 Here is how much of TeX's memory you used:
- 27843 strings out of 467167
- 506026 string characters out of 5406809
- 939523 words of memory out of 5000000
- 56136 multiletter control sequences out of 15000+600000
- 700533 words of font info for 411 fonts, out of 8000000 for 9000
+ 27944 strings out of 467167
+ 507921 string characters out of 5406809
+ 939980 words of memory out of 5000000
+ 56184 multiletter control sequences out of 15000+600000
+ 702910 words of font info for 439 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 117i,12n,131p,1736b,870s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 117i,12n,131p,1842b,898s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/inconsolata/Inconsolata-zi4r.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx9.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cmextra/cmex9.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi5.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi6.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi9.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cmextra/cmmib7.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cmextra/cmmib9.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr5.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr7.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr9.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmssbx10.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy5.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy6.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy7.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy9.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt10.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt8.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt9.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/mathpazo/fplmbb.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/mathpazo/fplmbi.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/mathpazo/fplmr.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/public/mathpazo/fplmri.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/urw/palatino/uplb8a.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/urw/palatino/uplr8a.pfb></Users/prdm0/Library/TinyTeX/texmf-dist/fonts/type1/urw/palatino/uplri8a.pfb>
-Output written on RJwrapper.pdf (19 pages, 1455790 bytes).
+Output written on RJwrapper.pdf (24 pages, 1491112 bytes).
 PDF statistics:
- 632 PDF objects out of 1000 (max. 8388607)
- 516 compressed objects within 6 object streams
- 73 named destinations out of 1000 (max. 500000)
- 78461 words of extra memory for PDF output out of 89155 (max. 10000000)
+ 699 PDF objects out of 1000 (max. 8388607)
+ 575 compressed objects within 6 object streams
+ 87 named destinations out of 1000 (max. 500000)
+ 79514 words of extra memory for PDF output out of 89155 (max. 10000000)
 

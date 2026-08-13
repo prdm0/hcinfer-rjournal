@@ -9,7 +9,7 @@ library(ggplot2)
 library(dplyr)
 
 
-## ----workflow, echo=FALSE, fig.cap="Main hcinfer workflow from a fitted lm() object to robust covariance estimation, coefficient inference, and diagnostic graphics. The covariance object provides the robust covariance matrix, leverage values, adjustment factors, and method parameters; the inference object augments these quantities with Wald tests and confidence intervals.", fig.alt="Workflow diagram. A fitted lm() object feeds vcov_hc() and hcinfer(); hcinfer() internally calls vcov_hc(). vcov_hc() returns an hcinfer_vcov object supporting vcov() and plot(); hcinfer() returns an hcinfer object supporting tests(), confint(), summary(), and plot()."----
+## ----workflow, echo=FALSE, fig.cap="Main hcinfer workflow from a fitted lm() object to robust covariance estimation, coefficient inference, an empirical bootstrap reference, and a model-based variance alternative. The covariance object provides the robust covariance matrix, leverage values, adjustment factors, and method parameters; the inference object augments these with Wald tests and confidence intervals; the bootstrap object provides resampling standard errors and intervals; and the FGLS object provides model-based mean and dispersion estimates.", fig.alt="Workflow diagram. A fitted lm() object feeds vcov_hc(), hcinfer(), boot_pairs(), and gls_mult(); hcinfer() internally calls vcov_hc(). vcov_hc() returns an hcinfer_vcov object supporting vcov() and plot(); hcinfer() returns an hcinfer object supporting tests(), confint(), summary(), and plot(); boot_pairs() returns an hcinfer_boot object supporting coef(), vcov(), confint(), and plot(); gls_mult() returns a gls_mult object supporting coef(), vcov(), tests(), confint(), summary(), plot(), logLik(), AIC(), BIC(), fitted(), and residuals()."----
 knitr::include_graphics(
   if (knitr::is_latex_output()) "figures/workflow.pdf" else "figures/workflow.png")
 
@@ -53,12 +53,14 @@ methods_tbl
 ## ----api, echo=FALSE----------------------------------------------------------
 api_df <- data.frame(
   Function = c(
-    "hcinfer()", "vcov_hc()", "tests()", "confint()", "summary()",
-    "plot()", "hc_methods()", "coef() and vcov()"
+    "hcinfer()", "vcov_hc()", "boot_pairs()", "gls_mult()", "tests()",
+    "confint()", "summary()", "plot()", "hc_methods()", "coef() and vcov()"
   ),
   Role = c(
     "Fits the full robust inference workflow for an lm() object.",
     "Returns the selected HC covariance matrix and diagnostics.",
+    "Computes pairs (case) bootstrap standard errors and confidence intervals for OLS coefficients.",
+    "Fits feasible GLS under multiplicative heteroskedasticity by two-step or maximum likelihood.",
     "Extracts coefficient-level normal Wald tests as a tibble.",
     "Extracts robust Wald confidence intervals.",
     "Prints model metadata, method parameters, leverage diagnostics, robust weights, tests, and intervals.",
@@ -85,7 +87,7 @@ knitr::include_graphics(
   if (knitr::is_latex_output()) "figures/sandwich-efficiency.pdf" else "figures/sandwich-efficiency.png")
 
 
-## ----architecture, echo=FALSE, fig.cap="Repository-level architecture of hcinfer. The diagram separates the public API, the computational core, the S3 output layer, and the surrounding support files and package assets.", fig.alt="Architecture diagram. A fitted lm() object feeds a user-facing API layer with vcov_hc(), hcinfer(), and hc_methods(). This drives a computational core of model-info.R, hc-weights.R, vcov-hc.R, and hcinfer.R, which produces returned objects and S3 methods: hcinfer_vcov and hcinfer, with vcov(), coef(), tests(), confint(), summary(), print(), and plot(). Supporting infrastructure below covers support files and package assets such as data/, man/, vignettes/, tests/, and docs/."----
+## ----architecture, echo=FALSE, fig.cap="Repository-level architecture of hcinfer. The diagram separates the public API, the computational core, the S3 output layer, and the surrounding support files and package assets.", fig.alt="Architecture diagram. A fitted lm() object feeds a user-facing API layer with vcov_hc(), hcinfer(), boot_pairs(), gls_mult(), and hc_methods(). This drives a computational core of model-info.R, hc-weights.R, vcov-hc.R, hcinfer.R, boot-pairs.R, and gls-mult.R, which produces returned objects and S3 methods: hcinfer_vcov, hcinfer, hcinfer_boot, and gls_mult, with vcov(), coef(), tests(), confint(), summary(), print(), plot(), logLik(), AIC(), BIC(), fitted(), and residuals(). Supporting infrastructure below covers support files and package assets such as data/, man/, vignettes/, tests/, and docs/."----
 knitr::include_graphics(
   if (knitr::is_latex_output()) "figures/architecture.pdf" else "figures/architecture.png")
 
@@ -358,4 +360,61 @@ knitr::kable(
   booktabs = TRUE,
   caption = "Maximum adjustment factor $g_t$ for the interaction coefficient under the intercept-free and intercept models. The intercept-free model is $y_t = \\beta_2 x_{t2} + \\beta_3 x_{t2} x_{t3} + e_t$ and the intercept model is $y_t = \\beta_1 + \\beta_2 x_{t2} + \\beta_3 x_{t2} x_{t3} + e_t$. HCbeta maintains stable adjustment factors across the two specifications."
 )
+
+
+## ----fgls-setup---------------------------------------------------------------
+boot <- boot_pairs(fit, B = 2000, seed = 2026)
+gls_fit <- gls_mult(fit, variance = ~ scaled_income)
+
+
+## ----fgls-se, echo=FALSE------------------------------------------------------
+terms2 <- c("scaled_income", "scaled_income:south")
+se_ols  <- sqrt(diag(vcov(fit)))[terms2]
+se_hc0  <- sqrt(diag(vcov(hcinfer(fit, type = "hc0"))))[terms2]
+se_hc3  <- sqrt(diag(vcov(hcinfer(fit, type = "hc3"))))[terms2]
+se_hcb  <- sqrt(diag(vcov(hcinfer(fit, type = "hcbeta"))))[terms2]
+se_boot <- boot$std_error[terms2]
+se_gls  <- sqrt(diag(vcov(gls_fit)))[terms2]
+fgls_se_df <- data.frame(
+  Method = c("OLS", "HC0", "HC3", "HCbeta", "Pairs bootstrap", "FGLS (ML)"),
+  `SE(scaled_income)` = sprintf(
+    "%.2f",
+    c(se_ols[1], se_hc0[1], se_hc3[1], se_hcb[1], se_boot[1], se_gls[1])
+  ),
+  `SE(scaled_income:south)` = sprintf(
+    "%.2f",
+    c(se_ols[2], se_hc0[2], se_hc3[2], se_hcb[2], se_boot[2], se_gls[2])
+  ),
+  check.names = FALSE
+)
+knitr::kable(
+  fgls_se_df,
+  format = if (knitr::is_latex_output()) "latex" else "html",
+  booktabs = TRUE,
+  caption = "Standard errors for the two coefficients of the intercept-free interaction model, where $\\beta_2$ is the scaled-income slope and $\\beta_3$ the interaction between scaled income and the Southern-region indicator. The OLS, HC, and pairs bootstrap rows all summarize the same ordinary least squares coefficient estimates, whereas FGLS (ML) re-estimates the coefficients under the multiplicative variance model, so its standard errors refer to different point estimates."
+)
+
+
+## ----fgls-sd, echo=FALSE, fig.cap="Fitted conditional standard deviation from the multiplicative-variance FGLS model against scaled per capita income for the education-expenditure regression. The dashed line marks the homoskedastic ordinary least squares residual standard deviation; the fitted conditional standard deviation increases with income and crosses the flat reference.", fig.alt="Scatter plot of the fitted conditional standard deviation against scaled per capita income. The points rise from left to right. A horizontal dashed line marks the constant ordinary least squares residual standard deviation, and the fitted conditional standard deviation is below the line at low income and above it at high income."----
+fgls_sd_df <- data.frame(
+  scaled_income = df$scaled_income,
+  cond_sd = sqrt(gls_fit$fitted_variances)
+)
+ggplot(fgls_sd_df, aes(x = scaled_income, y = cond_sd)) +
+  geom_hline(
+    yintercept = sigma(fit),
+    linetype = "dashed",
+    color = "#c0392b",
+    linewidth = 0.9
+  ) +
+  geom_point(color = "#2c5f8a", alpha = 0.8, size = 2.2) +
+  labs(
+    x = "Per capita income (scaled by 10,000 USD)",
+    y = "Fitted conditional standard deviation (USD)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
 

@@ -38,17 +38,19 @@ abstract: >
   in linear models fitted with lm. It computes the HC0 through HC5m estimators
   together with HCbeta, a leverage-sensitive estimator proposed by the package
   authors that adjusts the residual weights through a beta distribution fitted
-  to the leverage values. The package integrates covariance estimation,
+  to the leverage values. Covariance estimation is coupled with
   coefficient-level normal Wald tests, confidence intervals, leverage
   diagnostics, adjustment-factor inspection, and graphical reporting behind a
-  small and consistent interface, and it reuses the standard R generics so that
-  its objects behave like familiar model outputs. This article describes the
-  package interface and implementation, and illustrates its use with an
-  analysis of public school expenditure data in which the choice of covariance
-  estimator changes the substantive conclusion. The default HCbeta estimator
-  provides a leverage-sensitive correction while avoiding the very large
-  adjustment factors that some high-leverage estimators produce, and it makes
-  comparing estimators and inspecting leverage values straightforward.
+  small and consistent interface that reuses the standard R generics. Two
+  complementary tools broaden the same workflow: a pairs bootstrap that
+  supplies assumption-free empirical standard errors and intervals as a
+  reference for the analytic estimators, and feasible generalized least squares
+  under multiplicative heteroskedasticity, fitted by Harvey's two-step method
+  or by Gaussian maximum likelihood with information criteria. An analysis of
+  public school expenditure data illustrates the package and shows how the
+  choice of covariance estimator can change the substantive conclusion, while
+  the default HCbeta estimator avoids the very large adjustment factors that
+  some high-leverage estimators produce.
 type: package
 preamble: |
   \usepackage{booktabs}
@@ -79,9 +81,9 @@ Heteroskedasticity is often a structural feature of applied data rather than a m
 
 Heteroskedasticity-consistent (HC) covariance matrix estimators provide a nonparametric correction to this problem. The seminal estimator of @White1980 replaces the scalar error variance in the ordinary least squares covariance matrix with a diagonal matrix formed by squared residuals. Subsequent proposals refine this construction through finite-sample and leverage-based adjustment factors. These include HC1 [@Hinkley1977], HC2 [@MacKinnonWhite1985], HC3 [@MacKinnonWhite1985; @DavidsonMacKinnon1993], HC4 [@CribariNeto2004], HC4m [@CribariNetoDaSilva2011], HC5 [@CribariNetoSouzaVasconcellos2007], HC5m [@Li2016], and the more recent $\text{HC}_\beta$ [@Cunha+Cribari+Marinho_2026_arXiv]. Although all of these estimators converge to the same asymptotic sandwich form, their finite-sample behavior can differ substantially, which is precisely the regime where the choice among them affects substantive conclusions.
 
-The \CRANpkg{hcinfer} package for R implements this family of HC estimators for linear models fitted with `lm()` [@RCoreTeam2026; @MarinhoHcinfer2026]. Although robust covariance estimation is already well established in R through the \CRANpkg{sandwich} package [@Zeileis2004; @Zeileis2006], which provides a broad framework for HC and HAC estimation, \CRANpkg{hcinfer} has a more specialized and complementary purpose. It focuses exclusively on HC inference for linear regression models and integrates covariance estimation, coefficient-level normal Wald tests, confidence intervals, leverage diagnostics, adjustment-factor inspection, and graphical reporting into a unified framework. Its default estimator is $\text{HC}_\beta$, reflecting the package authors' view that a leverage-sensitive correction is a reasonable starting point for routine inference in modest samples.
+The \CRANpkg{hcinfer} package for R implements this family of HC estimators for linear models fitted with `lm()` [@RCoreTeam2026; @MarinhoHcinfer2026]. Although robust covariance estimation is already well established in R through the \CRANpkg{sandwich} package [@Zeileis2004; @Zeileis2006], which provides a broad framework for HC and HAC estimation, \CRANpkg{hcinfer} has a more specialized and complementary purpose. It focuses exclusively on HC inference for linear regression models and integrates covariance estimation, coefficient-level normal Wald tests, confidence intervals, leverage diagnostics, adjustment-factor inspection, and graphical reporting into a unified framework. Beyond covariance estimation, the package also provides a pairs bootstrap that yields assumption-free empirical standard errors as a reference for the analytic estimators, and feasible generalized least squares under a multiplicative variance model, fitted either by Harvey's two-step procedure or by Gaussian maximum likelihood. Its default estimator is $\text{HC}_\beta$, reflecting the package authors' view that a leverage-sensitive correction is a reasonable starting point for routine inference in modest samples.
 
-This article presents `hcinfer` as a statistical software contribution for heteroskedasticity-robust inference in linear regression. The emphasis is on the package interface, implementation, and practical use, while the mathematical development is included only to define the quantities computed and to clarify the relationships among the available estimators. Section 2 reviews HC covariance estimators and normal Wald inference. Section 3 introduces the package interface. Section 4 discusses implementation details. Section 5 presents an empirical illustration and an estimator comparison. Section 6 documents software availability and reproducibility, and Section 7 summarizes the contribution.
+This article presents `hcinfer` as a statistical software contribution for heteroskedasticity-robust inference in linear regression. The emphasis is on the package interface, implementation, and practical use, while the mathematical development is included only to define the quantities computed and to clarify the relationships among the available estimators. Section 2 reviews HC covariance estimators and normal Wald inference, and introduces the pairs bootstrap and feasible generalized least squares under multiplicative heteroskedasticity. Section 3 introduces the package interface. Section 4 discusses implementation details. Section 5 presents an empirical illustration and an estimator comparison. Section 6 documents software availability and reproducibility, and Section 7 summarizes the contribution.
 
 # Statistical background
 
@@ -188,16 +190,48 @@ z_{1-\alpha/2}
 $$
 and it contains $\beta_j$ with probability that approaches $1-\alpha$ when $n \to \infty$.
 
+## Pairs bootstrap as an empirical reference
+
+Analytic HC standard errors can also be checked against a resampling reference. The `boot_pairs()` function computes the pairs, or case, bootstrap for the ordinary least squares coefficients [@DavisonHinkley1997; @EfronTibshirani1993]. Each of $B$ replicates draws $n$ observation indices with replacement from $\{1,\ldots,n\}$, refits ordinary least squares on the resampled pairs $(y_i,\mathbf{x}_i)$, and stores the replicate estimate $\hat{\boldsymbol{\beta}}^{*}_{(r)}$. The bootstrap standard error of coefficient $j$ is the sample standard deviation of $\hat\beta^{*}_{1,j},\ldots,\hat\beta^{*}_{B,j}$. Because it resamples whole observations, the pairs bootstrap makes no assumption about the form of the error variance, so it is an assumption-free empirical companion to the analytic estimators rather than a substitute for them.
+
+Three interval types are available. Writing $q_\alpha$ for the empirical $\alpha$ quantile of the replicates, $\hat\beta_j$ for the original estimate, $s^{*}_j$ for the bootstrap standard error, and $\alpha=1-\texttt{level}$, the percentile interval is $[q_{\alpha/2},\,q_{1-\alpha/2}]$, the basic (reverse percentile) interval is $[2\hat\beta_j-q_{1-\alpha/2},\,2\hat\beta_j-q_{\alpha/2}]$, and the normal interval is $\hat\beta_j\pm z_{1-\alpha/2}\,s^{*}_j$. The resampling is reproducible through a `seed` argument, and, because all indices are drawn once in the main process, the result is identical whether the replicate fits run sequentially or in parallel. Resamples that turn out rank deficient are dropped with a warning, and the summaries use the remaining replicates.
+
+## Feasible generalized least squares under multiplicative heteroskedasticity
+
+The HC estimators robustify the covariance matrix while leaving the ordinary least squares coefficients unchanged. A complementary strategy models the error variance explicitly and reweights the fit. When the conditional variance can be described by observed regressors, \CRANpkg{hcinfer} provides feasible generalized least squares under a multiplicative variance model through `gls_mult()`. The mean model is $\mathbf{y}=X\boldsymbol{\beta}+\mathbf{e}$ with $e_t=\sigma_t\varepsilon_t$ and $\varepsilon_t\stackrel{\mathrm{iid}}{\sim}N(0,1)$, and the variance is
+$$
+\sigma_t^2=\exp(\eta_t),\qquad \eta_t=\mathbf{z}_t'\boldsymbol{\gamma},
+$$
+where $\mathbf{z}_t$ is the $t$th row of an $n\times q$ full-rank dispersion matrix $Z$ that contains an intercept, and $\boldsymbol{\gamma}$ is the log-variance coefficient vector. The exponential link keeps the fitted variances positive for every $\boldsymbol{\gamma}$, and $\exp(\eta_t/2)$ is the conditional standard deviation in the units of the response. Unlike the HC estimators, this route places a testable assumption on the variance, so it suits settings in which the analyst is willing to model the heteroskedasticity rather than only guard against it.
+
+The two-step estimator, selected with `estimator = "two_step"`, follows @Harvey1976. It regresses $\log(\hat e_t^2)$ on $Z$ to obtain a preliminary $\tilde{\boldsymbol{\gamma}}$ and corrects the dispersion intercept by the additive constant $c=-\psi(1/2)-\log 2\approx 1.2704$, where $\psi$ is the digamma function, because $\mathbb{E}\{\log(\varepsilon_t^2)\}=-c$ under normality. The corrected coefficients give inverse-variance weights $\hat w_t=\exp(-\mathbf{z}_t'\hat{\boldsymbol{\gamma}})$ and the feasible generalized least squares estimator
+$$
+\hat{\boldsymbol{\beta}}_{\mathrm{GLS}}=(X'\widehat W X)^{-1}X'\widehat W\mathbf{y},
+\qquad \widehat W=\operatorname{diag}(\hat w_1,\ldots,\hat w_n),
+$$
+whose reported model-based covariance $(X'\widehat W X)^{-1}$ treats the estimated weights as known, the convention of @CribariNetoPereira2019. The asymptotic covariance of the auxiliary regression is $(\pi^2/2)(Z'Z)^{-1}$, since $\pi^2/2$ is the variance of $\log(\chi^2_1)$.
+
+The default estimator, `estimator = "ml"`, maximizes the Gaussian log-likelihood of the same specification,
+$$
+\ell(\boldsymbol{\beta},\boldsymbol{\gamma})=
+-\frac{n}{2}\log(2\pi)
+-\frac{1}{2}\sum_{t=1}^{n}\mathbf{z}_t'\boldsymbol{\gamma}
+-\frac{1}{2}\sum_{t=1}^{n}\exp(-\mathbf{z}_t'\boldsymbol{\gamma})(y_t-\mathbf{x}_t'\boldsymbol{\beta})^2,
+$$
+profiling $\boldsymbol{\beta}$ out by weighted least squares at each trial $\boldsymbol{\gamma}$ so that the optimizer searches only the $q$-dimensional dispersion space. The expected information is block diagonal, with $\mathcal{I}_{\beta\beta}=X'WX$ and $\mathcal{I}_{\gamma\gamma}=\tfrac{1}{2}Z'Z$, which yields the reported dispersion covariance $2(Z'Z)^{-1}$ and the mean covariance $(X'\widehat W X)^{-1}$. Because a maximum likelihood fit carries a genuine log-likelihood with $p+q$ degrees of freedom, `logLik()`, and hence `AIC()` and `BIC()`, compare competing variance specifications directly; with an intercept-only dispersion model the fit reduces to the homoskedastic Gaussian linear model. The reported covariance is model based and therefore relies on correct specification of the variance model, so `gls_mult()` complements rather than replaces the HC estimators, which remain the appropriate choice when no variance model is assumed.
+
 # Overview of the hcinfer package
 
 The package is organized around two main entry points that follow a common interface. The covariance function, `vcov_hc(object, type, ...)`, computes a heteroskedasticity-consistent covariance estimator and returns an S3 object containing the covariance matrix, residuals, leverage values, HC adjustment factors, method parameters, coefficient names, model metadata, and dimension information. The inference function, `hcinfer(object, type, alpha, null, ...)`, builds on `vcov_hc()` and augments its output with coefficient-level test statistics, $p$-values, confidence intervals, null values, and the corresponding normal critical value.
 
 The argument `type` selects the HC estimator and is matched case insensitively. The argument `alpha` determines the nominal level of the $(1-\alpha)$ confidence intervals and associated tests. The argument `null` specifies the null hypothesis values and accepts either a scalar, applied to all coefficients, or a named vector assigning different null values to selected coefficients. Figure \@ref(fig:workflow) summarizes the user-facing workflow.
 
-```{r workflow, echo=FALSE, fig.cap="Main hcinfer workflow from a fitted lm() object to robust covariance estimation, coefficient inference, and diagnostic graphics. The covariance object provides the robust covariance matrix, leverage values, adjustment factors, and method parameters; the inference object augments these quantities with Wald tests and confidence intervals.", fig.alt="Workflow diagram. A fitted lm() object feeds vcov_hc() and hcinfer(); hcinfer() internally calls vcov_hc(). vcov_hc() returns an hcinfer_vcov object supporting vcov() and plot(); hcinfer() returns an hcinfer object supporting tests(), confint(), summary(), and plot()."}
+```{r workflow, echo=FALSE, fig.cap="Main hcinfer workflow from a fitted lm() object to robust covariance estimation, coefficient inference, an empirical bootstrap reference, and a model-based variance alternative. The covariance object provides the robust covariance matrix, leverage values, adjustment factors, and method parameters; the inference object augments these with Wald tests and confidence intervals; the bootstrap object provides resampling standard errors and intervals; and the FGLS object provides model-based mean and dispersion estimates.", fig.alt="Workflow diagram. A fitted lm() object feeds vcov_hc(), hcinfer(), boot_pairs(), and gls_mult(); hcinfer() internally calls vcov_hc(). vcov_hc() returns an hcinfer_vcov object supporting vcov() and plot(); hcinfer() returns an hcinfer object supporting tests(), confint(), summary(), and plot(); boot_pairs() returns an hcinfer_boot object supporting coef(), vcov(), confint(), and plot(); gls_mult() returns a gls_mult object supporting coef(), vcov(), tests(), confint(), summary(), plot(), logLik(), AIC(), BIC(), fitted(), and residuals()."}
 knitr::include_graphics(
   if (knitr::is_latex_output()) "figures/workflow.pdf" else "figures/workflow.png")
 ```
+
+The same interface extends to two further entry points. The function `boot_pairs(object, B, level, ci_type, cores, seed)` produces pairs bootstrap standard errors and confidence intervals for the ordinary least squares coefficients, with reproducible resampling through `seed` and optional parallel execution through `cores`. The function `gls_mult(object, variance, estimator, method, alpha, null)` fits feasible generalized least squares under a multiplicative variance model: `variance` supplies the dispersion regressors as a one-sided formula, `estimator` chooses Harvey's two-step procedure or Gaussian maximum likelihood, and `method` selects the optimizer for the likelihood fit. Both functions return S3 objects that reuse the same generics as the covariance and inference objects.
 
 The available estimators are selected through `type`, and Table \@ref(tab:methods) lists the implemented methods together with their tuning constants. These constants are supplied through `...` and default to the values proposed in the original methodology. This design allows the user to retune an estimator without changing the rest of the interface; for example, by setting $k = 0.5$ for HC5 or $c_1 = 5$ and $c_2 = 0.5$ for $\text{HC}_\beta$.
 
@@ -239,17 +273,19 @@ methods_tbl
 
 The tuning constants also make explicit the relationships among estimators. HC5m reduces to HC4m when $(k_1, k_2, k_3) = (1,1,0)$ and to HC5 when $(k_1, k_2, k_3) = (0,0,1)$. When the fitted shape parameters equal one, the beta CDF coincides with the uniform CDF; independently of those parameters, $\text{HC}_\beta$ reduces exactly to HC1 when $c_1=0$, because the adjustment exponent then vanishes. Methods without tuning constants do not accept additional arguments. For HC5, HC5m, and $\text{HC}_\beta$, supplied argument names are validated against the documented set, so misspelled constants are rejected with an informative error rather than being ignored silently.
 
-Table \@ref(tab:api) lists the main user-facing functions. The package reuses the standard generics `coef()`, `vcov()`, `confint()`, `summary()`, `print()`, and `plot()`, allowing its objects to behave like familiar model outputs. The `plot()` method produces a coefficient forest plot for inference objects and an adjustment-factor diagnostic for covariance objects. Its `label_top` argument controls how many high-leverage observations are annotated. The extractor functions `tests()` and `hc_methods()` provide functionality beyond the base R generics, and both `tests()` and `confint()` accept a `parm` argument to restrict the output to selected coefficients.
+Table \@ref(tab:api) lists the main user-facing functions. The package reuses the standard generics `coef()`, `vcov()`, `confint()`, `summary()`, `print()`, and `plot()`, allowing its objects to behave like familiar model outputs. The `plot()` method produces a coefficient forest plot for inference objects and an adjustment-factor diagnostic for covariance objects. Its `label_top` argument controls how many high-leverage observations are annotated. The extractor functions `tests()` and `hc_methods()` provide functionality beyond the base R generics, and both `tests()` and `confint()` accept a `parm` argument to restrict the output to selected coefficients. The `gls_mult()` objects additionally support `logLik()`, `AIC()`, `BIC()`, `fitted()`, and `residuals()`, and the `boot_pairs()` objects support `coef()`, `vcov()`, `confint()`, and `plot()`, so both behave like ordinary fitted-model outputs.
 
 ```{r api, echo=FALSE}
 api_df <- data.frame(
   Function = c(
-    "hcinfer()", "vcov_hc()", "tests()", "confint()", "summary()",
-    "plot()", "hc_methods()", "coef() and vcov()"
+    "hcinfer()", "vcov_hc()", "boot_pairs()", "gls_mult()", "tests()",
+    "confint()", "summary()", "plot()", "hc_methods()", "coef() and vcov()"
   ),
   Role = c(
     "Fits the full robust inference workflow for an lm() object.",
     "Returns the selected HC covariance matrix and diagnostics.",
+    "Computes pairs (case) bootstrap standard errors and confidence intervals for OLS coefficients.",
+    "Fits feasible GLS under multiplicative heteroskedasticity by two-step or maximum likelihood.",
     "Extracts coefficient-level normal Wald tests as a tibble.",
     "Extracts robust Wald confidence intervals.",
     "Prints model metadata, method parameters, leverage diagnostics, robust weights, tests, and intervals.",
@@ -318,6 +354,10 @@ knitr::include_graphics(
 
 HC weights are computed by a single vectorized dispatcher. The dispatcher constructs $h_t/\bar{h}$, $1-h_t$, and $h_{\max}$ once and changes only the formula for $g_t$. This keeps the estimators comparable in code as well as in the underlying mathematics: HC0 through HC5m and $\text{HC}_\beta$ all enter the same sandwich calculation after their adjustment factors have been computed.
 
+The feasible generalized least squares routine `gls_mult()` reuses the same computational discipline as the covariance calculation. It never forms the $n\times n$ weight matrix $\widehat W$; instead it row-scales the design by the weight vector, centers the fitted log-variances to improve conditioning, and solves the weighted normal equations through a Cholesky factorization rather than an explicit inverse. For the maximum likelihood fit it profiles $\boldsymbol{\beta}$ out by weighted least squares and optimizes only the $q$ dispersion parameters with the analytic profile gradient, and it accepts a solution as a local optimum only when the optimizer converges and the scale-invariant profile-score norm falls below a fixed tolerance, which rejects a false convergence report at a nonstationary point.
+
+The pairs bootstrap `boot_pairs()` draws all resampling indices once in the main process under the supplied `seed` and refits each replicate with `stats::.lm.fit()`, so the result is deterministic and independent of the number of cores. When more than one core is requested, the deterministic replicate fits are distributed with `purrr::in_parallel()` and the \CRANpkg{mirai} backend without changing the numeric result. Rank-deficient resamples are detected by their reduced rank and dropped, and the call stops if fewer than two valid replicates remain.
+
 Validation is performed early and specifically. The package rejects rank-deficient models, models with $p \ge n$, non-finite coefficients or residuals, leverage values outside the admissible interval, and cases where $1-h_t$ is numerically nonpositive. For HC5, HC5m, and $\text{HC}_\beta$, method constants supplied through `...` are checked against their allowed names and scalar constraints. For $\text{HC}_\beta$, the truncation limits must lie in $(0,1)$, the lower limit must be smaller than the upper limit, the estimated beta parameters must be positive and finite, and the final weights must be positive and finite.
 
 The $\text{HC}_\beta$ implementation estimates the beta parameters by the method of moments from the truncated leverage complements $w_t$, and then applies the shrinkage defined in Equation \@ref(eq:shrinkage). The regularized incomplete beta function is not reimplemented in the package; instead, the numerically stable base R routine `stats::pbeta()` is used directly. This choice keeps the implementation short and delegates a delicate numerical routine to a well-tested standard library function.
@@ -326,12 +366,12 @@ The package returns S3 objects rather than plain matrices whenever diagnostics a
 
 The package dependencies are intentionally small and targeted. The \CRANpkg{cli} package formats console output [@Cli2026], \CRANpkg{tibble} stores tabular results [@Tibble2026], \CRANpkg{ggplot2} builds graphics [@Wickham2016Ggplot2], and \CRANpkg{purrr} and \CRANpkg{rlang} support functional programming and argument validation [@Purrr2026; @Rlang2026]. Figure \@ref(fig:architecture) maps the implementation files and package assets in the GitHub repository.
 
-```{r architecture, echo=FALSE, fig.cap="Repository-level architecture of hcinfer. The diagram separates the public API, the computational core, the S3 output layer, and the surrounding support files and package assets.", fig.alt="Architecture diagram. A fitted lm() object feeds a user-facing API layer with vcov_hc(), hcinfer(), and hc_methods(). This drives a computational core of model-info.R, hc-weights.R, vcov-hc.R, and hcinfer.R, which produces returned objects and S3 methods: hcinfer_vcov and hcinfer, with vcov(), coef(), tests(), confint(), summary(), print(), and plot(). Supporting infrastructure below covers support files and package assets such as data/, man/, vignettes/, tests/, and docs/."}
+```{r architecture, echo=FALSE, fig.cap="Repository-level architecture of hcinfer. The diagram separates the public API, the computational core, the S3 output layer, and the surrounding support files and package assets.", fig.alt="Architecture diagram. A fitted lm() object feeds a user-facing API layer with vcov_hc(), hcinfer(), boot_pairs(), gls_mult(), and hc_methods(). This drives a computational core of model-info.R, hc-weights.R, vcov-hc.R, hcinfer.R, boot-pairs.R, and gls-mult.R, which produces returned objects and S3 methods: hcinfer_vcov, hcinfer, hcinfer_boot, and gls_mult, with vcov(), coef(), tests(), confint(), summary(), print(), plot(), logLik(), AIC(), BIC(), fitted(), and residuals(). Supporting infrastructure below covers support files and package assets such as data/, man/, vignettes/, tests/, and docs/."}
 knitr::include_graphics(
   if (knitr::is_latex_output()) "figures/architecture.pdf" else "figures/architecture.png")
 ```
 
-Figure \@ref(fig:logo) shows the \CRANpkg{hcinfer} package logo. At submission, version 0.2.0 is on CRAN, the GitHub development version is 0.2.0.9000, and documentation is available on the package website. The package can be installed from CRAN, from r-universe, or from the GitHub development repository; the GitHub route uses \CRANpkg{remotes} [@Remotes2024]. Together, these channels provide distinct access points for the stable release, the development source, and the package documentation.
+Figure \@ref(fig:logo) shows the \CRANpkg{hcinfer} package logo. At submission, version 0.3.0 is on CRAN, the GitHub repository hosts the development source, and documentation is available on the package website. The package can be installed from CRAN, from r-universe, or from the GitHub development repository; the GitHub route uses \CRANpkg{remotes} [@Remotes2024]. Together, these channels provide distinct access points for the stable release, the development source, and the package documentation.
 
 ```{r logo, echo=FALSE, out.width="32%", fig.cap="The hcinfer package logo. The package implements heteroskedasticity-consistent inference for linear models; suggestions and improvements are welcome through GitHub issues and pull requests.", fig.alt="The hcinfer package logo."}
 knitr::include_graphics(
@@ -651,11 +691,78 @@ knitr::kable(
 )
 ```
 
+## A bootstrap reference and a variance model
+
+The primary $\text{HC}_\beta$ analysis can be complemented by two tools that operate on the same fitted model `fit`. The pairs bootstrap in `boot_pairs()` resamples whole jurisdictions and refits ordinary least squares, providing an assumption-free empirical reference for the analytic standard errors, while `gls_mult()` fits a multiplicative-variance model that estimates the heteroskedasticity explicitly and reweights the observations. Because the mean model is intercept-free, the dispersion model is supplied as the one-sided formula `~ scaled_income`, which lets the error variance grow with per capita income and provides the intercept that the dispersion model requires.
+
+```{r fgls-setup}
+boot <- boot_pairs(fit, B = 2000, seed = 2026)
+gls_fit <- gls_mult(fit, variance = ~ scaled_income)
+```
+
+All `r boot$B_effective` resamples produced a full-rank fit, so no replicate was discarded. The pairs bootstrap standard error of the interaction coefficient $\beta_3$ is `r sprintf("%.2f", boot$std_error["scaled_income:south"])`, and that of the income slope $\beta_2$ is `r sprintf("%.2f", boot$std_error["scaled_income"])`. For both coefficients the bootstrap standard error lies between the HC0 and HC3 values and below the more conservative $\text{HC}_\beta$ standard error, as Table \@ref(tab:fgls-se) shows. The resampling reference therefore corroborates the analytic heteroskedasticity-consistent standard errors for these coefficients without relying on any variance model.
+
+The default maximum likelihood fit of `gls_mult()` re-estimates the coefficients under the fitted variance model. The mean estimates are `r sprintf("%.2f", coef(gls_fit)["scaled_income"])` for the income slope and `r sprintf("%.2f", coef(gls_fit)["scaled_income:south"])` for the interaction, close to the ordinary least squares estimates reported earlier, with model-based standard errors of `r sprintf("%.2f", sqrt(diag(vcov(gls_fit)))["scaled_income"])` and `r sprintf("%.2f", sqrt(diag(vcov(gls_fit)))["scaled_income:south"])`. The interaction remains statistically indistinguishable from zero, so the substantive conclusion of the $\text{HC}_\beta$ analysis is unchanged. The positive log-variance slope on scaled income (`r sprintf("%.2f", gls_fit$variance_coefficients["scaled_income"])`) indicates that the conditional variance increases with per capita income, and because a maximum likelihood fit carries a genuine log-likelihood, its `AIC()` of `r sprintf("%.2f", AIC(gls_fit))` and `BIC()` of `r sprintf("%.2f", BIC(gls_fit))` allow direct comparison of competing variance specifications. Since its covariance is model based, `gls_mult()` complements rather than replaces the heteroskedasticity-consistent estimators.
+
+```{r fgls-se, echo=FALSE}
+terms2 <- c("scaled_income", "scaled_income:south")
+se_ols  <- sqrt(diag(vcov(fit)))[terms2]
+se_hc0  <- sqrt(diag(vcov(hcinfer(fit, type = "hc0"))))[terms2]
+se_hc3  <- sqrt(diag(vcov(hcinfer(fit, type = "hc3"))))[terms2]
+se_hcb  <- sqrt(diag(vcov(hcinfer(fit, type = "hcbeta"))))[terms2]
+se_boot <- boot$std_error[terms2]
+se_gls  <- sqrt(diag(vcov(gls_fit)))[terms2]
+fgls_se_df <- data.frame(
+  Method = c("OLS", "HC0", "HC3", "HCbeta", "Pairs bootstrap", "FGLS (ML)"),
+  `SE(scaled_income)` = sprintf(
+    "%.2f",
+    c(se_ols[1], se_hc0[1], se_hc3[1], se_hcb[1], se_boot[1], se_gls[1])
+  ),
+  `SE(scaled_income:south)` = sprintf(
+    "%.2f",
+    c(se_ols[2], se_hc0[2], se_hc3[2], se_hcb[2], se_boot[2], se_gls[2])
+  ),
+  check.names = FALSE
+)
+knitr::kable(
+  fgls_se_df,
+  format = if (knitr::is_latex_output()) "latex" else "html",
+  booktabs = TRUE,
+  caption = "Standard errors for the two coefficients of the intercept-free interaction model, where $\\beta_2$ is the scaled-income slope and $\\beta_3$ the interaction between scaled income and the Southern-region indicator. The OLS, HC, and pairs bootstrap rows all summarize the same ordinary least squares coefficient estimates, whereas FGLS (ML) re-estimates the coefficients under the multiplicative variance model, so its standard errors refer to different point estimates."
+)
+```
+
+Figure \@ref(fig:fgls-sd) plots the fitted conditional standard deviation $\exp(\hat\eta_t/2)$ implied by this variance model against scaled per capita income, with a dashed line at the homoskedastic ordinary least squares residual standard deviation. The fitted conditional standard deviation rises steadily with income, lying below the flat reference for low-income jurisdictions and well above it for the highest-income ones. This upward pattern is the income-driven heteroskedasticity that motivates robust inference in this example, and it clarifies why the ordinary least squares standard errors, which assume a constant variance, differ from the heteroskedasticity-consistent and model-based alternatives.
+
+```{r fgls-sd, echo=FALSE, fig.cap="Fitted conditional standard deviation from the multiplicative-variance FGLS model against scaled per capita income for the education-expenditure regression. The dashed line marks the homoskedastic ordinary least squares residual standard deviation; the fitted conditional standard deviation increases with income and crosses the flat reference.", fig.alt="Scatter plot of the fitted conditional standard deviation against scaled per capita income. The points rise from left to right. A horizontal dashed line marks the constant ordinary least squares residual standard deviation, and the fitted conditional standard deviation is below the line at low income and above it at high income."}
+fgls_sd_df <- data.frame(
+  scaled_income = df$scaled_income,
+  cond_sd = sqrt(gls_fit$fitted_variances)
+)
+ggplot(fgls_sd_df, aes(x = scaled_income, y = cond_sd)) +
+  geom_hline(
+    yintercept = sigma(fit),
+    linetype = "dashed",
+    color = "#c0392b",
+    linewidth = 0.9
+  ) +
+  geom_point(color = "#2c5f8a", alpha = 0.8, size = 2.2) +
+  labs(
+    x = "Per capita income (scaled by 10,000 USD)",
+    y = "Fitted conditional standard deviation (USD)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+```
+
 # Availability and reproducibility
 
 The \CRANpkg{hcinfer} package is available on CRAN at <https://CRAN.R-project.org/package=hcinfer>. Its development repository is hosted on GitHub at <https://github.com/prdm0/hcinfer>, and its documentation website is available at <https://prdm0.github.io/hcinfer/>. The GitHub repository is the preferred channel for bug reports, feature requests, and proposed improvements through issues and pull requests. The package is distributed under the MIT license, and its CRAN-assigned DOI is <https://doi.org/10.32614/CRAN.package.hcinfer>. Development uses continuous integration through GitHub Actions [@GitHubActions2026], including automated package checks across supported platforms. This infrastructure supports reproducibility, API stability, and safe review of proposed changes.
 
-The article and its supporting scripts regenerate all tables and figures from the installed package, so the numerical output is reproducible from the evaluated R chunks rather than being hard-coded. The scripts used to regenerate these assets rely on the installed CRAN package and can alternatively load the local development version when \CRANpkg{pkgload} is installed [@Pkgload2026]. Supporting package infrastructure uses \CRANpkg{dplyr} for data manipulation in examples, \CRANpkg{knitr} and \CRANpkg{rmarkdown} for vignette rendering, and \CRANpkg{testthat} for automated testing [@Dplyr2026; @Knitr2025; @Rmarkdown2026; @Wickham2011Testthat].
+The article and its supporting scripts regenerate all tables and figures from the installed package, so the numerical output is reproducible from the evaluated R chunks rather than being hard-coded. The scripts used to regenerate these assets rely on the installed CRAN package and can alternatively load the local development version when \CRANpkg{pkgload} is installed [@Pkgload2026]. Supporting package infrastructure uses \CRANpkg{dplyr} for data manipulation in examples, \CRANpkg{knitr} and \CRANpkg{rmarkdown} for vignette rendering, and \CRANpkg{testthat} for automated testing [@Dplyr2026; @Knitr2025; @Rmarkdown2026; @Wickham2011Testthat]. The package ships vignettes covering the methodology, the HCbeta algorithm, estimator comparisons, the pairs bootstrap, and feasible generalized least squares.
 
 The test suite covers covariance estimators, HC weight calculations, S3 methods, confidence intervals, hypothesis tests, graphical output, and numerical anchors derived from the $\text{HC}_\beta$ implementation. Running the article rebuilds the worked example, the comparison tables, and the diagnostic figures from the same package code that the test suite checks. Data and software supporting the worked example are publicly available through the package on CRAN and through the GitHub repository, which together cover software availability and data availability for the results reported here.
 
@@ -663,7 +770,7 @@ The test suite covers covariance estimators, HC weight calculations, S3 methods,
 
 The \CRANpkg{hcinfer} package implements a focused workflow for heteroskedasticity-consistent inference in ordinary least squares regression. Its main contribution is to combine covariance estimation, coefficient-level normal Wald inference, method-specific tuning constants, diagnostics, and graphical summaries within a compact interface. This integration is especially useful when the choice of HC estimator materially affects inference, as often happens in small or moderate samples with high-leverage observations. The implementation also evaluates the common HC sandwich through a vector of diagonal weights, direct cross-products, and a single Cholesky factorization per covariance call, thereby avoiding a dense diagonal matrix and an explicit inverse.
 
-The implementation is intentionally restricted to ordinary least squares models fitted with `lm()`. The package does not fit generalized linear models, mixed-effects models, or nonlinear regression models. It also does not provide bootstrap confidence intervals or Student $t$ reference distributions. These restrictions keep the statistical target well defined: normal Wald inference based on HC covariance estimators for linear regression, which is the regime where the choice of HC estimators has direct practical consequences.
+The implementation is intentionally restricted to ordinary least squares models fitted with `lm()`. The package does not fit generalized linear models, mixed-effects models, or nonlinear regression models. It uses standard-normal Wald reference distributions rather than Student $t$ references. The package does provide a pairs bootstrap as an assumption-free empirical reference for the analytic standard errors, and feasible generalized least squares under a multiplicative variance model as an explicit, model-based alternative; the latter reports a model-based covariance and complements, rather than replaces, the HC estimators. These restrictions keep the statistical target well defined: normal Wald inference based on HC covariance estimators for linear regression, which is the regime where the choice of HC estimators has direct practical consequences.
 
 The default $\text{HC}_\beta$ estimator is designed to provide a leverage-sensitive correction while avoiding the largest adjustment factors produced by some high-leverage estimators in examples such as the public-schools regression. This default, however, does not eliminate the need for sensitivity analysis. The package therefore makes estimator comparison straightforward and exposes the underlying leverage values and adjustment factors, so that users can compare estimators directly rather than relying on a single default. A practical reporting strategy is to present the primary $\text{HC}_\beta$ analysis, inspect the diagnostic plots, and compare the results with classical HC estimators whenever the substantive conclusions depend on the reported standard errors.
 

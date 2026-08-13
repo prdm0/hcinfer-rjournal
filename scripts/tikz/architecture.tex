@@ -107,41 +107,48 @@
 
 \begin{document}
 \begin{tikzpicture}[x=1cm,y=0.92cm]
-  \node[hcentry, minimum width=34mm] (fit) at (0,7.1) {stats::lm() fit};
+  \node[hcentry, minimum width=34mm] (fit) at (0,8.2) {stats::lm() fit};
 
-  \node[hccard, draw=hcapi, fill=hcapifill, text width=64mm, font=\scriptsize\sffamily, inner xsep=7pt, inner ysep=6pt] (api) at (0,5.75) {%%
+  \node[hccard, draw=hcapi, fill=hcapifill, text width=70mm, font=\scriptsize\sffamily, inner xsep=7pt, inner ysep=6pt] (api) at (0,6.0) {%%
     \textbf{1. User-facing API}\\
     {\bfseries\ttfamily vcov\_hc()}: covariance workflow\\
     {\bfseries\ttfamily hcinfer()}: Wald tests and intervals\\
+    {\bfseries\ttfamily boot\_pairs()}: pairs bootstrap\\
+    {\bfseries\ttfamily gls\_mult()}: multiplicative-variance FGLS\\
     {\bfseries\ttfamily hc\_methods()}: method defaults
   };
 
-  \node[hccard, draw=hccorecol, fill=hccorefill, text width=64mm, font=\scriptsize\sffamily, inner xsep=7pt, inner ysep=6pt] (core) at (0,3.15) {%%
+  \node[hccard, draw=hccorecol, fill=hccorefill, text width=70mm, font=\scriptsize\sffamily, inner xsep=7pt, inner ysep=6pt] (core) at (0,3.0) {%%
     \textbf{2. Computational core in \texttt{R/}}\\
     {\ttfamily model-info.R}: \(X\), residuals, leverage\\
     {\ttfamily hc-weights.R}: HC weights \(g_t\)\\
     {\ttfamily vcov-hc.R}: sandwich covariance\\
-    {\ttfamily hcinfer.R}: coefficient table
+    {\ttfamily hcinfer.R}: coefficient table\\
+    {\ttfamily boot-pairs.R}: pairs bootstrap\\
+    {\ttfamily gls-mult.R}: feasible GLS
   };
 
-  \node[hccard, draw=hcobject, fill=hcobjectfill, text width=64mm, font=\scriptsize\sffamily, inner xsep=7pt, inner ysep=6pt] (objects) at (0,0.55) {%%
+  \node[hccard, draw=hcobject, fill=hcobjectfill, text width=70mm, font=\scriptsize\sffamily, inner xsep=7pt, inner ysep=6pt] (objects) at (0,-0.4) {%%
     \textbf{3. Returned objects and S3 methods}\\
     {\ttfamily hcinfer\_vcov}: covariance diagnostics\\
     {\ttfamily hcinfer}: tests and intervals\\
+    {\ttfamily hcinfer\_boot}: bootstrap replicates\\
+    {\ttfamily gls\_mult}: FGLS mean and dispersion\\
     {\bfseries\ttfamily vcov(), coef(), tests(), confint()}\\
-    {\bfseries\ttfamily summary(), print(), plot()}
+    {\bfseries\ttfamily summary(), print(), plot()}\\
+    {\bfseries\ttfamily logLik(), AIC(), BIC(), fitted(), residuals()}
   };
 
-  \draw[hcsplit] (-3.25,-1.02) -- node[hclabel, fill=hcpage, inner xsep=4pt, inner ysep=1pt] {Supporting infrastructure} (3.25,-1.02);
+  \draw[hcsplit] (-3.6,-2.6) -- node[hclabel, fill=hcpage, inner xsep=4pt, inner ysep=1pt] {Supporting infrastructure} (3.6,-2.6);
 
-  \node[hccard, draw=hcsupport, fill=hcsupportfill, text width=29mm, font=\scriptsize\sffamily, inner xsep=6pt, inner ysep=5pt] (support) at (-2.15,-2.05) {%%
+  \node[hccard, draw=hcsupport, fill=hcsupportfill, text width=29mm, font=\scriptsize\sffamily, inner xsep=6pt, inner ysep=5pt] (support) at (-2.15,-4.1) {%%
     \textbf{Support files}\\
     validation\\
     method metadata\\
     output helpers
   };
 
-  \node[hccard, draw=hcsupport, fill=hcsupportfill, text width=29mm, font=\scriptsize\sffamily, inner xsep=6pt, inner ysep=5pt] (assets) at (2.15,-2.05) {%%
+  \node[hccard, draw=hcsupport, fill=hcsupportfill, text width=29mm, font=\scriptsize\sffamily, inner xsep=6pt, inner ysep=5pt] (assets) at (2.15,-4.1) {%%
     \textbf{Package assets}\\
     {\ttfamily data/}, {\ttfamily man/}\\
     {\ttfamily vignettes/}, {\ttfamily tests/}\\
